@@ -1,0 +1,60 @@
+"app.title" = "DnD Music Player";
+
+"error.title" = "Error";
+"error.unknown" = "Unknown error";
+"error.play_file" = "Failed to play file: %@\n%@";
+"error.play_effect" = "Failed to play effect: %@\n%@";
+"error.no_new_audio_files" = "No new audio files found";
+"error.no_file_access" = "No file access. Re-add the file to restore permission.";
+"error.no_effect_access" = "No effect file access. Re-add the file to restore permission.";
+"error.save_playlists" = "Failed to save playlists";
+"error.load_music_playlists" = "Failed to load music playlists";
+"error.load_sfx_playlists" = "Failed to load SFX playlists";
+
+"action.ok" = "OK";
+"action.save" = "Save";
+"action.delete" = "Delete";
+"action.cancel" = "Cancel";
+"action.done" = "Done";
+"action.play" = "Play";
+"action.add_files" = "Add Files";
+"action.add_folder" = "Add Folder";
+
+"playlist.delete.confirm.title" = "Delete playlist?";
+"playlist.delete.confirm.message" = "This action cannot be undone.";
+"playlist.main.default" = "Main Playlist";
+"playlist.sfx_master.default" = "SFX Master";
+"playlist.default.number" = "Playlist %d";
+"sfx.default.number" = "SFX %d";
+
+"sidebar.music_playlists" = "Music Playlists";
+"sidebar.sfx_playlists" = "SFX Playlists";
+"sidebar.shuffle_play" = "Shuffle play";
+"sidebar.playlist_editor" = "Playlist Editor";
+"sidebar.playlist_name" = "Playlist name";
+
+"empty.music_playlist" = "No music playlist";
+"empty.sfx_playlist" = "No SFX playlist";
+
+"player.nothing_playing" = "Nothing is playing";
+"player.shuffle" = "Shuffle order";
+"player.repeat" = "Repeat";
+"player.stop_sfx" = "Stop SFX";
+"player.fade_out" = "Fade Out";
+
+"repeat.off" = "No Repeat";
+"repeat.one" = "Repeat Track";
+"repeat.all" = "Repeat Playlist";
+
+"settings.title" = "Settings";
+"settings.ducking" = "Ducking";
+"settings.sfx_master_volume" = "Master SFX Volume";
+"settings.music_columns" = "Track Columns";
+"settings.effects_columns" = "Effect Columns";
+"settings.language" = "Language";
+"settings.language.english" = "English";
+"settings.language.russian" = "Russian";
+
+"import.files.title" = "Choose audio files";
+"import.folder.title" = "Choose folder with audio";
+"import.folder.message" = "The app will add supported audio files from the selected folder and subfolders.";
