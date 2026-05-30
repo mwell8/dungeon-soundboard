@@ -7,12 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		EB37E7CA2F5B91DF00127E2F /* DnD_Music_Player.plist in Resources */ = {isa = PBXBuildFile; fileRef = EB37E7C92F5B91DF00127E2F /* DnD_Music_Player.plist */; };
+		EB37E7CA2F5B91DF00127E2F /* Dungeon_Soundboard.plist in Resources */ = {isa = PBXBuildFile; fileRef = EB37E7C92F5B91DF00127E2F /* Dungeon_Soundboard.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		EB37E7892F5B6C3900127E2F /* DnD_Music_Player.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DnD_Music_Player.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		EB37E7C92F5B91DF00127E2F /* DnD_Music_Player.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = DnD_Music_Player.plist; sourceTree = "<group>"; };
+		EB37E7892F5B6C3900127E2F /* Dungeon_Soundboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dungeon_Soundboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EB37E7C92F5B91DF00127E2F /* Dungeon_Soundboard.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Dungeon_Soundboard.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -57,7 +57,7 @@
 		EB37E7802F5B6C3900127E2F = {
 			isa = PBXGroup;
 			children = (
-				EB37E7C92F5B91DF00127E2F /* DnD_Music_Player.plist */,
+				EB37E7C92F5B91DF00127E2F /* Dungeon_Soundboard.plist */,
 				EB37E7C32F5B849700127E2F /* Resources */,
 				EB37E7A32F5B7F2000127E2F /* app */,
 				EB37E7B22F5B7F3E00127E2F /* Models */,
@@ -70,7 +70,7 @@
 		EB37E78A2F5B6C3900127E2F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EB37E7892F5B6C3900127E2F /* DnD_Music_Player.app */,
+				EB37E7892F5B6C3900127E2F /* Dungeon_Soundboard.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -78,9 +78,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EB37E7882F5B6C3900127E2F /* DnD_Music_Player */ = {
+		EB37E7882F5B6C3900127E2F /* Dungeon_Soundboard */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EB37E7942F5B6C3900127E2F /* Build configuration list for PBXNativeTarget "DnD_Music_Player" */;
+			buildConfigurationList = EB37E7942F5B6C3900127E2F /* Build configuration list for PBXNativeTarget "Dungeon_Soundboard" */;
 			buildPhases = (
 				EB37E7852F5B6C3900127E2F /* Sources */,
 				EB37E7862F5B6C3900127E2F /* Frameworks */,
@@ -97,11 +97,11 @@
 				EB37E7B82F5B7F4600127E2F /* ViewModels */,
 				EB37E7C32F5B849700127E2F /* Resources */,
 			);
-			name = DnD_Music_Player;
+			name = Dungeon_Soundboard;
 			packageProductDependencies = (
 			);
-			productName = DnD_Music_Player;
-			productReference = EB37E7892F5B6C3900127E2F /* DnD_Music_Player.app */;
+			productName = Dungeon_Soundboard;
+			productReference = EB37E7892F5B6C3900127E2F /* Dungeon_Soundboard.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -119,7 +119,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EB37E7842F5B6C3900127E2F /* Build configuration list for PBXProject "DnD Music Player" */;
+			buildConfigurationList = EB37E7842F5B6C3900127E2F /* Build configuration list for PBXProject "Dungeon Soundboard" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -134,7 +134,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EB37E7882F5B6C3900127E2F /* DnD_Music_Player */,
+				EB37E7882F5B6C3900127E2F /* Dungeon_Soundboard */,
 			);
 		};
 /* End PBXProject section */
@@ -144,7 +144,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EB37E7CA2F5B91DF00127E2F /* DnD_Music_Player.plist in Resources */,
+				EB37E7CA2F5B91DF00127E2F /* Dungeon_Soundboard.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -302,7 +302,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "MW.DnD-Music-Player";
+				PRODUCT_BUNDLE_IDENTIFIER = "MW.Dungeon-Soundboard";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -337,7 +337,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "MW.DnD-Music-Player";
+				PRODUCT_BUNDLE_IDENTIFIER = "MW.Dungeon-Soundboard";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -352,7 +352,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EB37E7842F5B6C3900127E2F /* Build configuration list for PBXProject "DnD Music Player" */ = {
+		EB37E7842F5B6C3900127E2F /* Build configuration list for PBXProject "Dungeon Soundboard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EB37E7922F5B6C3900127E2F /* Debug */,
@@ -361,7 +361,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EB37E7942F5B6C3900127E2F /* Build configuration list for PBXNativeTarget "DnD_Music_Player" */ = {
+		EB37E7942F5B6C3900127E2F /* Build configuration list for PBXNativeTarget "Dungeon_Soundboard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EB37E7952F5B6C3900127E2F /* Debug */,

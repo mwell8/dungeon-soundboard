@@ -146,22 +146,22 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     // MARK: - Ключи UserDefaults
 
-    private let legacyPlaylistsKey = "macos_dnd_music_player_playlists"
-    private let migrationCompletedKey = "macos_dnd_music_player_migration_v2_completed"
+    private let legacyPlaylistsKey = "macos_dungeon_soundboard_playlists"
+    private let migrationCompletedKey = "macos_dungeon_soundboard_migration_v2_completed"
 
-    private let musicPlaylistsKey = "macos_dnd_music_player_music_playlists"
-    private let effectPlaylistsKey = "macos_dnd_music_player_effect_playlists"
+    private let musicPlaylistsKey = "macos_dungeon_soundboard_music_playlists"
+    private let effectPlaylistsKey = "macos_dungeon_soundboard_effect_playlists"
 
-    private let volumeKey = "macos_dnd_music_player_volume"
-    private let effectsVolumeKey = "macos_dnd_music_player_effects_volume"
-    private let repeatModeKey = "macos_dnd_music_player_repeat_mode"
-    private let shuffleKey = "macos_dnd_music_player_shuffle_enabled"
-    private let selectedMusicPlaylistKey = "macos_dnd_music_player_selected_music_playlist_id"
-    private let selectedEffectPlaylistKey = "macos_dnd_music_player_selected_effect_playlist_id"
-    private let legacySelectedPlaylistKey = "macos_dnd_music_player_selected_playlist_id"
-    private let duckingAmountKey = "macos_dnd_music_player_ducking_amount"
-    private let musicColumnsKey = "macos_dnd_music_player_music_columns"
-    private let effectsColumnsKey = "macos_dnd_music_player_effects_columns"
+    private let volumeKey = "macos_dungeon_soundboard_volume"
+    private let effectsVolumeKey = "macos_dungeon_soundboard_effects_volume"
+    private let repeatModeKey = "macos_dungeon_soundboard_repeat_mode"
+    private let shuffleKey = "macos_dungeon_soundboard_shuffle_enabled"
+    private let selectedMusicPlaylistKey = "macos_dungeon_soundboard_selected_music_playlist_id"
+    private let selectedEffectPlaylistKey = "macos_dungeon_soundboard_selected_effect_playlist_id"
+    private let legacySelectedPlaylistKey = "macos_dungeon_soundboard_selected_playlist_id"
+    private let duckingAmountKey = "macos_dungeon_soundboard_ducking_amount"
+    private let musicColumnsKey = "macos_dungeon_soundboard_music_columns"
+    private let effectsColumnsKey = "macos_dungeon_soundboard_effects_columns"
 
     // MARK: - Поддерживаемые расширения
 

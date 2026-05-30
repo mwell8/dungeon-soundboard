@@ -9,16 +9,16 @@ set -euo pipefail
 #   NOTARY_PROFILE='notarytool-profile-name'
 #
 # Optional env vars:
-#   APP_SCHEME='DnD_Music_Player'
-#   APP_PROJECT='DnD Music Player.xcodeproj'
+#   APP_SCHEME='Dungeon_Soundboard'
+#   APP_PROJECT='Dungeon Soundboard.xcodeproj'
 #   BUILD_DIR='.DerivedDataRelease'
 #   DIST_DIR='dist'
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-APP_SCHEME="${APP_SCHEME:-DnD_Music_Player}"
-APP_PROJECT="${APP_PROJECT:-DnD Music Player.xcodeproj}"
+APP_SCHEME="${APP_SCHEME:-Dungeon_Soundboard}"
+APP_PROJECT="${APP_PROJECT:-Dungeon Soundboard.xcodeproj}"
 BUILD_DIR="${BUILD_DIR:-.DerivedDataRelease}"
 DIST_DIR="${DIST_DIR:-dist}"
 

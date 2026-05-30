@@ -1,4 +1,4 @@
-# DnD Music Player (macOS)
+# Dungeon Soundboard (macOS)
 
 Desktop audio app for tabletop sessions: play background music continuously and trigger SFX on top without interrupting the main track.
 
@@ -17,15 +17,15 @@ Desktop audio app for tabletop sessions: play background music continuously and 
 
 ## Run (Xcode)
 
-1. Open `DnD Music Player.xcodeproj`.
-2. Select scheme `DnD_Music_Player`.
+1. Open `Dungeon Soundboard.xcodeproj`.
+2. Select scheme `Dungeon_Soundboard`.
 3. Build and run on **My Mac**.
 
 ## Run (CLI)
 
 ```bash
-xcodebuild -project "DnD Music Player.xcodeproj" \
-  -scheme "DnD_Music_Player" \
+xcodebuild -project "Dungeon Soundboard.xcodeproj" \
+  -scheme "Dungeon_Soundboard" \
   -configuration Debug \
   -sdk macosx \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
@@ -36,23 +36,23 @@ xcodebuild -project "DnD Music Player.xcodeproj" \
 Build a distributable unsigned app:
 
 ```bash
-xcodebuild -project "DnD Music Player.xcodeproj" \
-  -scheme "DnD_Music_Player" \
+xcodebuild -project "Dungeon Soundboard.xcodeproj" \
+  -scheme "Dungeon_Soundboard" \
   -configuration Release \
   -sdk macosx \
   -derivedDataPath ".DerivedData" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 
 mkdir -p Release
-cp -R ".DerivedData/Build/Products/Release/DnD_Music_Player.app" Release/
+cp -R ".DerivedData/Build/Products/Release/Dungeon_Soundboard.app" Release/
 ```
 
 Optional zip for GitHub Releases:
 
 ```bash
 ditto -c -k --sequesterRsrc --keepParent \
-  "Release/DnD_Music_Player.app" \
-  "Release/DnD_Music_Player-unsigned-macOS.zip"
+  "Release/Dungeon_Soundboard.app" \
+  "Release/Dungeon_Soundboard-unsigned-macOS.zip"
 ```
 
 ## First Launch On User Mac (Unsigned App)
@@ -84,7 +84,7 @@ NOTARY_PROFILE="AC_NOTARY" \
 ```
 
 Output artifacts will be placed in `dist/`, including notarized zip:
-`dist/DnD_Music_Player-macOS-notarized.zip`.
+`dist/Dungeon_Soundboard-macOS-notarized.zip`.
 
 ## Screenshots
 
@@ -104,5 +104,5 @@ MIT — see [LICENSE](./LICENSE).
 
 ## Кратко по-русски
 
-Приложение для DnD/настольных игр: музыка играет непрерывно, а эффекты (SFX) можно запускать поверх неё без переключения трека.  
+Приложение для настольных игр: музыка играет непрерывно, а эффекты (SFX) можно запускать поверх неё без переключения трека.  
 Поддерживаются отдельные плейлисты музыки и эффектов, ducking, и переключение языка интерфейса (EN/RU).
