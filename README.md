@@ -9,6 +9,9 @@ Desktop audio app for tabletop sessions: play background music continuously and 
 - Compact two-zone UI (Music top, SFX bottom).
 - Runtime UI language switch (**English / Russian**).
 - Persistent playlists and player preferences.
+- Drag-and-drop import from Finder to Music/SFX zones.
+- Multi-select track management with `Cmd+Click` and `Delete`.
+- SFX hotkeys: `Option+1...9` for first nine effect tiles.
 
 ## Requirements
 
@@ -29,6 +32,12 @@ xcodebuild -project "Dungeon Soundboard.xcodeproj" \
   -configuration Debug \
   -sdk macosx \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+```
+
+## Unit Tests (Core Logic)
+
+```bash
+swift test --disable-sandbox --scratch-path .build --cache-path .swiftpm-cache
 ```
 
 ## Release (Unsigned `.app`, no paid Apple Developer)

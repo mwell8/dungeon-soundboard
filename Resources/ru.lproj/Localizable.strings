@@ -19,6 +19,7 @@
 "action.play" = "Воспроизвести";
 "action.add_files" = "Добавить файлы";
 "action.add_folder" = "Добавить папку";
+"action.delete_selected" = "Удалить выбранные";
 
 "playlist.delete.confirm.title" = "Удалить плейлист?";
 "playlist.delete.confirm.message" = "Это действие нельзя отменить.";
@@ -58,3 +59,8 @@
 "import.files.title" = "Выберите аудиофайлы";
 "import.folder.title" = "Выберите папку с аудио";
 "import.folder.message" = "Приложение добавит поддерживаемые аудиофайлы из выбранной папки и вложенных папок.";
+"import.conflicts.title" = "Некоторые файлы пропущены";
+"import.conflicts.message" = "%@ импорт: выбрано %d, добавлено %d, дубликатов %d.";
+
+"settings.telemetry.sentry_enabled" = "Отправлять ошибки в Sentry";
+"settings.telemetry.sentry_dsn" = "Sentry DSN (опционально)";

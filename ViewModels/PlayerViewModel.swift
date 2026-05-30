@@ -12,6 +12,15 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         case effect(UUID)
     }
 
+    struct ImportConflictSummary: Identifiable, Equatable {
+        let id = UUID()
+        let target: String
+        let attemptedCount: Int
+        let addedCount: Int
+        let duplicateCount: Int
+        let duplicateTitles: [String]
+    }
+
     // MARK: - Публичное состояние
 
     @Published var musicPlaylists: [Playlist] = []
@@ -84,7 +93,34 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        didSet {
+            guard let errorMessage, !errorMessage.isEmpty else { return }
+            AppTelemetry.shared.error(
+                errorMessage,
+                metadata: [
+                    "music_playlists": "\(musicPlaylists.count)",
+                    "effect_playlists": "\(effectPlaylists.count)"
+                ]
+            )
+        }
+    }
+
+    @Published var importConflictSummary: ImportConflictSummary?
+    @Published var isSentryTelemetryEnabled: Bool = false {
+        didSet {
+            if !isHydratingPreferences {
+                savePreferences()
+            }
+        }
+    }
+    @Published var sentryDSN: String = "" {
+        didSet {
+            if !isHydratingPreferences {
+                savePreferences()
+            }
+        }
+    }
 
     @Published var duckingAmount: Double = 0.55 {
         didSet {
@@ -143,25 +179,6 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private var hasActiveSecurityScope: Bool = false
     // Во время загрузки настроек отключаем лишние savePreferences() из didSet.
     private var isHydratingPreferences: Bool = false
-
-    // MARK: - Ключи UserDefaults
-
-    private let legacyPlaylistsKey = "macos_dungeon_soundboard_playlists"
-    private let migrationCompletedKey = "macos_dungeon_soundboard_migration_v2_completed"
-
-    private let musicPlaylistsKey = "macos_dungeon_soundboard_music_playlists"
-    private let effectPlaylistsKey = "macos_dungeon_soundboard_effect_playlists"
-
-    private let volumeKey = "macos_dungeon_soundboard_volume"
-    private let effectsVolumeKey = "macos_dungeon_soundboard_effects_volume"
-    private let repeatModeKey = "macos_dungeon_soundboard_repeat_mode"
-    private let shuffleKey = "macos_dungeon_soundboard_shuffle_enabled"
-    private let selectedMusicPlaylistKey = "macos_dungeon_soundboard_selected_music_playlist_id"
-    private let selectedEffectPlaylistKey = "macos_dungeon_soundboard_selected_effect_playlist_id"
-    private let legacySelectedPlaylistKey = "macos_dungeon_soundboard_selected_playlist_id"
-    private let duckingAmountKey = "macos_dungeon_soundboard_ducking_amount"
-    private let musicColumnsKey = "macos_dungeon_soundboard_music_columns"
-    private let effectsColumnsKey = "macos_dungeon_soundboard_effects_columns"
 
     // MARK: - Поддерживаемые расширения
 
@@ -368,6 +385,14 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         addFolderFromFinder(target: .effect)
     }
 
+    func importDroppedMusicURLs(_ urls: [URL]) {
+        importTrackURLs(urls, role: .music, target: .music)
+    }
+
+    func importDroppedEffectURLs(_ urls: [URL]) {
+        importTrackURLs(urls, role: .effect, target: .effect)
+    }
+
     private func addFilesFromFinder(role: TrackRole, target: PlaylistTarget) {
         switch target {
         case .music:
@@ -390,14 +415,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         panel.canChooseFiles = true
 
         if panel.runModal() == .OK {
-            let newTracks = panel.urls.map { makeTrackWithSecurityScope(from: $0, role: role) }
-
-            switch target {
-            case .music:
-                appendUniqueMusicTracks(newTracks)
-            case .effect:
-                appendUniqueEffectTracks(newTracks)
-            }
+            importTrackURLs(panel.urls, role: role, target: target)
         }
     }
 
@@ -430,15 +448,31 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
                 }
                 let urls = Self.scanTrackURLs(in: folderURL, supportedExtensions: supportedExtensions)
                 await MainActor.run {
-                    let tracks = urls.map { self.makeTrackWithSecurityScope(from: $0, role: role) }
-                    switch target {
-                    case .music:
-                        self.appendUniqueMusicTracks(tracks)
-                    case .effect:
-                        self.appendUniqueEffectTracks(tracks)
-                    }
+                    self.importTrackURLs(urls, role: role, target: target)
                 }
             }
+        }
+    }
+
+    private func importTrackURLs(_ urls: [URL], role: TrackRole, target: PlaylistTarget) {
+        var collected: [URL] = []
+
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                let scanned = Self.scanTrackURLs(in: url, supportedExtensions: supportedExtensions)
+                collected.append(contentsOf: scanned)
+            } else if supportedExtensions.contains(url.pathExtension.lowercased()) {
+                collected.append(url)
+            }
+        }
+
+        let newTracks = collected.map { makeTrackWithSecurityScope(from: $0, role: role) }
+        switch target {
+        case .music:
+            appendUniqueMusicTracks(newTracks)
+        case .effect:
+            appendUniqueEffectTracks(newTracks)
         }
     }
 
@@ -489,6 +523,21 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         saveState()
     }
 
+    func removeMusicTracks(_ trackIDs: Set<UUID>) {
+        guard !trackIDs.isEmpty else { return }
+        guard let playlistIndex = selectedMusicPlaylistIndex else { return }
+
+        let removedCurrent = currentTrackID.map(trackIDs.contains) ?? false
+        musicPlaylists[playlistIndex].tracks.removeAll { trackIDs.contains($0.id) }
+        playbackHistory.removeAll { trackIDs.contains($0) }
+
+        if removedCurrent {
+            stop()
+            currentTrackID = musicPlaylists[playlistIndex].tracks.first?.id
+        }
+        saveState()
+    }
+
     func removeEffectTrack(_ track: Track) {
         guard let playlistIndex = selectedEffectPlaylistIndex else { return }
         guard let trackIndex = effectPlaylists[playlistIndex].effects.firstIndex(where: { $0.id == track.id }) else {
@@ -496,6 +545,13 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         }
 
         effectPlaylists[playlistIndex].effects.remove(at: trackIndex)
+        saveState()
+    }
+
+    func removeEffectTracks(_ trackIDs: Set<UUID>) {
+        guard !trackIDs.isEmpty else { return }
+        guard let playlistIndex = selectedEffectPlaylistIndex else { return }
+        effectPlaylists[playlistIndex].effects.removeAll { trackIDs.contains($0.id) }
         saveState()
     }
 
@@ -660,6 +716,11 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         }
     }
 
+    func playEffectAtIndex(_ index: Int) {
+        guard index >= 0, index < effectTracks.count else { return }
+        playEffect(effectTracks[index])
+    }
+
     func stopEffects() {
         stopAllEffects()
     }
@@ -730,16 +791,29 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private func appendUniqueMusicTracks(_ newTracks: [Track]) {
         guard let playlistIndex = selectedMusicPlaylistIndex else { return }
 
-        let existingPaths = Set(musicPlaylists[playlistIndex].tracks.map { $0.path })
-        let filteredTracks = newTracks.filter { !existingPaths.contains($0.path) }
+        let existingKeys = Set(musicPlaylists[playlistIndex].tracks.map(trackIdentityKey))
+        let filteredTracks = newTracks.filter { !existingKeys.contains(trackIdentityKey($0)) }
+        let duplicates = newTracks.filter { existingKeys.contains(trackIdentityKey($0)) }
 
         guard !filteredTracks.isEmpty else {
             errorMessage = L10n.tr("error.no_new_audio_files")
+            publishImportConflictSummary(
+                target: L10n.tr("sidebar.music_playlists"),
+                attemptedCount: newTracks.count,
+                addedCount: 0,
+                duplicates: duplicates
+            )
             return
         }
 
         musicPlaylists[playlistIndex].tracks.append(contentsOf: filteredTracks)
         saveState()
+        publishImportConflictSummary(
+            target: L10n.tr("sidebar.music_playlists"),
+            attemptedCount: newTracks.count,
+            addedCount: filteredTracks.count,
+            duplicates: duplicates
+        )
 
         if currentTrackID == nil, let first = musicPlaylists[playlistIndex].tracks.first {
             currentTrackID = first.id
@@ -749,16 +823,58 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private func appendUniqueEffectTracks(_ newTracks: [Track]) {
         guard let playlistIndex = selectedEffectPlaylistIndex else { return }
 
-        let existingPaths = Set(effectPlaylists[playlistIndex].effects.map { $0.path })
-        let filteredTracks = newTracks.filter { !existingPaths.contains($0.path) }
+        let existingKeys = Set(effectPlaylists[playlistIndex].effects.map(trackIdentityKey))
+        let filteredTracks = newTracks.filter { !existingKeys.contains(trackIdentityKey($0)) }
+        let duplicates = newTracks.filter { existingKeys.contains(trackIdentityKey($0)) }
 
         guard !filteredTracks.isEmpty else {
             errorMessage = L10n.tr("error.no_new_audio_files")
+            publishImportConflictSummary(
+                target: L10n.tr("sidebar.sfx_playlists"),
+                attemptedCount: newTracks.count,
+                addedCount: 0,
+                duplicates: duplicates
+            )
             return
         }
 
         effectPlaylists[playlistIndex].effects.append(contentsOf: filteredTracks)
         saveState()
+        publishImportConflictSummary(
+            target: L10n.tr("sidebar.sfx_playlists"),
+            attemptedCount: newTracks.count,
+            addedCount: filteredTracks.count,
+            duplicates: duplicates
+        )
+    }
+
+    private func publishImportConflictSummary(
+        target: String,
+        attemptedCount: Int,
+        addedCount: Int,
+        duplicates: [Track]
+    ) {
+        guard !duplicates.isEmpty else {
+            importConflictSummary = nil
+            return
+        }
+
+        importConflictSummary = ImportConflictSummary(
+            target: target,
+            attemptedCount: attemptedCount,
+            addedCount: addedCount,
+            duplicateCount: duplicates.count,
+            duplicateTitles: Array(duplicates.prefix(8)).map(\.title)
+        )
+        AppTelemetry.shared.warning(
+            "Import duplicates skipped",
+            metadata: [
+                "target": target,
+                "attempted": "\(attemptedCount)",
+                "added": "\(addedCount)",
+                "duplicates": "\(duplicates.count)"
+            ]
+        )
     }
 
     private func makeTrackWithSecurityScope(from url: URL, role: TrackRole) -> Track {
@@ -785,6 +901,21 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             role: role,
             bookmarkData: bookmarkData
         )
+    }
+
+    private func trackIdentityKey(_ track: Track) -> String {
+        if let bookmarkData = track.bookmarkData {
+            var isStale = false
+            if let resolvedURL = try? URL(
+                resolvingBookmarkData: bookmarkData,
+                options: [.withoutUI, .withoutMounting],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ) {
+                return resolvedURL.standardizedFileURL.path.lowercased()
+            }
+        }
+        return URL(fileURLWithPath: track.path).standardizedFileURL.path.lowercased()
     }
 
     private nonisolated static func scanTrackURLs(in folderURL: URL, supportedExtensions: Set<String>) -> [URL] {
@@ -1016,8 +1147,8 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             let musicData = try JSONEncoder().encode(musicPlaylists)
             let effectData = try JSONEncoder().encode(effectPlaylists)
             let defaults = UserDefaults.standard
-            defaults.set(musicData, forKey: musicPlaylistsKey)
-            defaults.set(effectData, forKey: effectPlaylistsKey)
+            defaults.set(musicData, forKey: PlayerDefaultsKeys.musicPlaylists)
+            defaults.set(effectData, forKey: PlayerDefaultsKeys.effectPlaylists)
         } catch {
             errorMessage = L10n.tr("error.save_playlists")
         }
@@ -1026,17 +1157,17 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private func loadState() {
         let defaults = UserDefaults.standard
 
-        if !defaults.bool(forKey: migrationCompletedKey),
-           let legacyData = defaults.data(forKey: legacyPlaylistsKey),
+        if !defaults.bool(forKey: PlayerDefaultsKeys.migrationCompleted),
+           let legacyData = defaults.data(forKey: PlayerDefaultsKeys.legacyPlaylists),
            let legacyPlaylists = try? JSONDecoder().decode([Playlist].self, from: legacyData) {
             // Однократная миграция с legacy-структуры на разделённые music/sfx плейлисты.
             migrateLegacyPlaylists(legacyPlaylists)
-            defaults.set(true, forKey: migrationCompletedKey)
+            defaults.set(true, forKey: PlayerDefaultsKeys.migrationCompleted)
             saveState()
             return
         }
 
-        if let musicData = defaults.data(forKey: musicPlaylistsKey) {
+        if let musicData = defaults.data(forKey: PlayerDefaultsKeys.musicPlaylists) {
             do {
                 musicPlaylists = try JSONDecoder().decode([Playlist].self, from: musicData)
             } catch {
@@ -1045,7 +1176,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             }
         }
 
-        if let effectData = defaults.data(forKey: effectPlaylistsKey) {
+        if let effectData = defaults.data(forKey: PlayerDefaultsKeys.effectPlaylists) {
             do {
                 effectPlaylists = try JSONDecoder().decode([EffectPlaylist].self, from: effectData)
             } catch {
@@ -1056,55 +1187,21 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     private func migrateLegacyPlaylists(_ legacyPlaylists: [Playlist]) {
-        var migratedMusicPlaylists: [Playlist] = []
-        var collectedEffects: [Track] = []
-
-        for playlist in legacyPlaylists {
-            let musicTracks = playlist.tracks.filter { $0.role == .music }
-            let effectTracks = playlist.tracks.filter { $0.role == .effect }
-
-            migratedMusicPlaylists.append(
-                Playlist(id: playlist.id, name: playlist.name, tracks: musicTracks)
-            )
-
-            collectedEffects.append(contentsOf: effectTracks)
-        }
-
-        if migratedMusicPlaylists.isEmpty {
-            migratedMusicPlaylists = [Playlist(name: L10n.tr("playlist.main.default"))]
-        }
-
-        let deduplicatedEffects = deduplicateTracksByPath(collectedEffects)
-        let effectPlaylist = EffectPlaylist(name: L10n.tr("playlist.sfx_master.default"), effects: deduplicatedEffects)
-
-        musicPlaylists = migratedMusicPlaylists
-        effectPlaylists = [effectPlaylist]
-
         let defaults = UserDefaults.standard
-        if let legacySelectedIDString = defaults.string(forKey: legacySelectedPlaylistKey),
-           let legacySelectedID = UUID(uuidString: legacySelectedIDString),
-           musicPlaylists.contains(where: { $0.id == legacySelectedID }) {
-            selectedMusicPlaylistID = legacySelectedID
-        } else {
-            selectedMusicPlaylistID = musicPlaylists.first?.id
-        }
+        let legacySelectedID = defaults
+            .string(forKey: PlayerDefaultsKeys.legacySelectedPlaylistID)
+            .flatMap(UUID.init(uuidString:))
+        let migrated = PlaylistMigration.migrateLegacyPlaylists(
+            legacyPlaylists,
+            legacySelectedID: legacySelectedID,
+            defaultMusicPlaylistName: L10n.tr("playlist.main.default"),
+            defaultSFXPlaylistName: L10n.tr("playlist.sfx_master.default")
+        )
 
-        selectedEffectPlaylistID = effectPlaylist.id
-    }
-
-    private func deduplicateTracksByPath(_ tracks: [Track]) -> [Track] {
-        // Путь — стабильный ключ дедупликации при переносе старых данных.
-        var seen = Set<String>()
-        var result: [Track] = []
-
-        for track in tracks {
-            let key = track.path.lowercased()
-            if seen.contains(key) { continue }
-            seen.insert(key)
-            result.append(track)
-        }
-
-        return result
+        musicPlaylists = migrated.musicPlaylists
+        effectPlaylists = migrated.effectPlaylists
+        selectedMusicPlaylistID = migrated.selectedMusicPlaylistID
+        selectedEffectPlaylistID = migrated.selectedEffectPlaylistID
     }
 
     private func ensureDefaultsAfterLoading() {
@@ -1149,15 +1246,17 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     private func savePreferences() {
         let defaults = UserDefaults.standard
-        defaults.set(volume, forKey: volumeKey)
-        defaults.set(effectsVolume, forKey: effectsVolumeKey)
-        defaults.set(repeatMode.rawValue, forKey: repeatModeKey)
-        defaults.set(isShuffleEnabled, forKey: shuffleKey)
-        defaults.set(selectedMusicPlaylistID?.uuidString, forKey: selectedMusicPlaylistKey)
-        defaults.set(selectedEffectPlaylistID?.uuidString, forKey: selectedEffectPlaylistKey)
-        defaults.set(duckingAmount, forKey: duckingAmountKey)
-        defaults.set(musicColumnsCount, forKey: musicColumnsKey)
-        defaults.set(effectsColumnsCount, forKey: effectsColumnsKey)
+        defaults.set(volume, forKey: PlayerDefaultsKeys.volume)
+        defaults.set(effectsVolume, forKey: PlayerDefaultsKeys.effectsVolume)
+        defaults.set(repeatMode.rawValue, forKey: PlayerDefaultsKeys.repeatMode)
+        defaults.set(isShuffleEnabled, forKey: PlayerDefaultsKeys.shuffleEnabled)
+        defaults.set(selectedMusicPlaylistID?.uuidString, forKey: PlayerDefaultsKeys.selectedMusicPlaylistID)
+        defaults.set(selectedEffectPlaylistID?.uuidString, forKey: PlayerDefaultsKeys.selectedEffectPlaylistID)
+        defaults.set(duckingAmount, forKey: PlayerDefaultsKeys.duckingAmount)
+        defaults.set(musicColumnsCount, forKey: PlayerDefaultsKeys.musicColumns)
+        defaults.set(effectsColumnsCount, forKey: PlayerDefaultsKeys.effectsColumns)
+        defaults.set(isSentryTelemetryEnabled, forKey: PlayerDefaultsKeys.sentryEnabled)
+        defaults.set(sentryDSN, forKey: PlayerDefaultsKeys.sentryDSN)
     }
 
     private func loadPreferences() {
@@ -1165,46 +1264,49 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         isHydratingPreferences = true
         defer { isHydratingPreferences = false }
 
-        if defaults.object(forKey: volumeKey) != nil {
-            volume = defaults.double(forKey: volumeKey)
+        if defaults.object(forKey: PlayerDefaultsKeys.volume) != nil {
+            volume = defaults.double(forKey: PlayerDefaultsKeys.volume)
         }
 
-        if defaults.object(forKey: effectsVolumeKey) != nil {
-            effectsVolume = defaults.double(forKey: effectsVolumeKey)
+        if defaults.object(forKey: PlayerDefaultsKeys.effectsVolume) != nil {
+            effectsVolume = defaults.double(forKey: PlayerDefaultsKeys.effectsVolume)
         }
 
-        if let rawRepeatMode = defaults.string(forKey: repeatModeKey),
+        if let rawRepeatMode = defaults.string(forKey: PlayerDefaultsKeys.repeatMode),
            let savedRepeatMode = RepeatMode.fromStoredValue(rawRepeatMode) {
             repeatMode = savedRepeatMode
         }
 
-        if defaults.object(forKey: shuffleKey) != nil {
-            isShuffleEnabled = defaults.bool(forKey: shuffleKey)
+        if defaults.object(forKey: PlayerDefaultsKeys.shuffleEnabled) != nil {
+            isShuffleEnabled = defaults.bool(forKey: PlayerDefaultsKeys.shuffleEnabled)
         }
 
-        if defaults.object(forKey: duckingAmountKey) != nil {
-            duckingAmount = defaults.double(forKey: duckingAmountKey)
+        if defaults.object(forKey: PlayerDefaultsKeys.duckingAmount) != nil {
+            duckingAmount = defaults.double(forKey: PlayerDefaultsKeys.duckingAmount)
         }
 
-        if defaults.object(forKey: musicColumnsKey) != nil {
-            musicColumnsCount = normalizedColumnsCount(defaults.integer(forKey: musicColumnsKey))
+        if defaults.object(forKey: PlayerDefaultsKeys.musicColumns) != nil {
+            musicColumnsCount = normalizedColumnsCount(defaults.integer(forKey: PlayerDefaultsKeys.musicColumns))
         }
 
-        if defaults.object(forKey: effectsColumnsKey) != nil {
-            effectsColumnsCount = normalizedColumnsCount(defaults.integer(forKey: effectsColumnsKey))
+        if defaults.object(forKey: PlayerDefaultsKeys.effectsColumns) != nil {
+            effectsColumnsCount = normalizedColumnsCount(defaults.integer(forKey: PlayerDefaultsKeys.effectsColumns))
         }
 
-        if let savedMusicPlaylistIDString = defaults.string(forKey: selectedMusicPlaylistKey),
+        if let savedMusicPlaylistIDString = defaults.string(forKey: PlayerDefaultsKeys.selectedMusicPlaylistID),
            let savedMusicPlaylistID = UUID(uuidString: savedMusicPlaylistIDString),
            musicPlaylists.contains(where: { $0.id == savedMusicPlaylistID }) {
             selectedMusicPlaylistID = savedMusicPlaylistID
         }
 
-        if let savedEffectPlaylistIDString = defaults.string(forKey: selectedEffectPlaylistKey),
+        if let savedEffectPlaylistIDString = defaults.string(forKey: PlayerDefaultsKeys.selectedEffectPlaylistID),
            let savedEffectPlaylistID = UUID(uuidString: savedEffectPlaylistIDString),
            effectPlaylists.contains(where: { $0.id == savedEffectPlaylistID }) {
             selectedEffectPlaylistID = savedEffectPlaylistID
         }
+
+        isSentryTelemetryEnabled = defaults.bool(forKey: PlayerDefaultsKeys.sentryEnabled)
+        sentryDSN = defaults.string(forKey: PlayerDefaultsKeys.sentryDSN) ?? ""
 
         if let selectedMusicPlaylistID {
             activePlaylistEditorTarget = .music(selectedMusicPlaylistID)

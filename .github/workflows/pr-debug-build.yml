@@ -1,0 +1,29 @@
+name: PR Debug Build
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main", "codex/**"]
+
+jobs:
+  build-and-test:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build macOS app (Debug, unsigned)
+        run: |
+          xcodebuild \
+            -project "Dungeon Soundboard.xcodeproj" \
+            -scheme "Dungeon_Soundboard" \
+            -configuration Debug \
+            -sdk macosx \
+            -derivedDataPath ".DerivedDataCI" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Run core unit tests
+        run: swift test --disable-sandbox --scratch-path .build --cache-path .swiftpm-cache

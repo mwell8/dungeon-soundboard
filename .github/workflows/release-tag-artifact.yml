@@ -1,0 +1,40 @@
+name: Release Artifact On Tag
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release-artifact:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Release app (unsigned)
+        run: |
+          xcodebuild \
+            -project "Dungeon Soundboard.xcodeproj" \
+            -scheme "Dungeon_Soundboard" \
+            -configuration Release \
+            -sdk macosx \
+            -derivedDataPath ".DerivedDataReleaseCI" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Pack release zip
+        run: |
+          mkdir -p Release
+          cp -R ".DerivedDataReleaseCI/Build/Products/Release/Dungeon_Soundboard.app" Release/
+          ditto -c -k --sequesterRsrc --keepParent \
+            "Release/Dungeon_Soundboard.app" \
+            "Release/Dungeon_Soundboard-unsigned-macOS.zip"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dungeon_Soundboard-unsigned-macOS
+          path: Release/Dungeon_Soundboard-unsigned-macOS.zip
+          if-no-files-found: error

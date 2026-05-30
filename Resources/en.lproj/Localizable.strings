@@ -19,6 +19,7 @@
 "action.play" = "Play";
 "action.add_files" = "Add Files";
 "action.add_folder" = "Add Folder";
+"action.delete_selected" = "Delete Selected";
 
 "playlist.delete.confirm.title" = "Delete playlist?";
 "playlist.delete.confirm.message" = "This action cannot be undone.";
@@ -58,3 +59,8 @@
 "import.files.title" = "Choose audio files";
 "import.folder.title" = "Choose folder with audio";
 "import.folder.message" = "The app will add supported audio files from the selected folder and subfolders.";
+"import.conflicts.title" = "Some files were skipped";
+"import.conflicts.message" = "%@ import: attempted %d, added %d, duplicates %d.";
+
+"settings.telemetry.sentry_enabled" = "Send error telemetry to Sentry";
+"settings.telemetry.sentry_dsn" = "Sentry DSN (optional)";

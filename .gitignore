@@ -7,6 +7,9 @@ DerivedData/
 .DerivedDataRelease/
 build/
 .build/
+.swiftpm-cache/
+.swift-module-cache/
+.swift-clang-module-cache/
 dist/
 Release/
 
