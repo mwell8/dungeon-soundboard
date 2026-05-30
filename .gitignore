@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Xcode / SwiftPM
+DerivedData/
+.DerivedData/
+.DerivedDataRelease/
+build/
+.build/
+dist/
+Release/
+
+# User-specific Xcode data
+xcuserdata/
+*.xcuserstate
+
+# Xcode workspace metadata that should stay local
+**/project.xcworkspace/xcuserdata/
+
+# Swift Package Manager workspace cache
+**/project.xcworkspace/xcshareddata/swiftpm/

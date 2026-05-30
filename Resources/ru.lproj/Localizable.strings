@@ -1,0 +1,60 @@
+"app.title" = "DnD Music Player";
+
+"error.title" = "Ошибка";
+"error.unknown" = "Неизвестная ошибка";
+"error.play_file" = "Не удалось воспроизвести файл: %@\n%@";
+"error.play_effect" = "Не удалось воспроизвести эффект: %@\n%@";
+"error.no_new_audio_files" = "Новых аудиофайлов не найдено";
+"error.no_file_access" = "Нет доступа к файлу. Переподтвердите доступ, добавив файл заново.";
+"error.no_effect_access" = "Нет доступа к файлу эффекта. Переподтвердите доступ, добавив файл заново.";
+"error.save_playlists" = "Не удалось сохранить плейлисты";
+"error.load_music_playlists" = "Не удалось загрузить музыкальные плейлисты";
+"error.load_sfx_playlists" = "Не удалось загрузить SFX-плейлисты";
+
+"action.ok" = "OK";
+"action.save" = "Сохранить";
+"action.delete" = "Удалить";
+"action.cancel" = "Отмена";
+"action.done" = "Готово";
+"action.play" = "Воспроизвести";
+"action.add_files" = "Добавить файлы";
+"action.add_folder" = "Добавить папку";
+
+"playlist.delete.confirm.title" = "Удалить плейлист?";
+"playlist.delete.confirm.message" = "Это действие нельзя отменить.";
+"playlist.main.default" = "Основной плейлист";
+"playlist.sfx_master.default" = "Общий SFX";
+"playlist.default.number" = "Плейлист %d";
+"sfx.default.number" = "SFX %d";
+
+"sidebar.music_playlists" = "Музыкальные плейлисты";
+"sidebar.sfx_playlists" = "SFX-плейлисты";
+"sidebar.shuffle_play" = "Случайно воспроизвести";
+"sidebar.playlist_editor" = "Редактор плейлиста";
+"sidebar.playlist_name" = "Название плейлиста";
+
+"empty.music_playlist" = "Нет музыкального плейлиста";
+"empty.sfx_playlist" = "Нет SFX-плейлиста";
+
+"player.nothing_playing" = "Ничего не играет";
+"player.shuffle" = "Случайный порядок";
+"player.repeat" = "Повтор";
+"player.stop_sfx" = "Остановить SFX";
+"player.fade_out" = "Плавно затихать";
+
+"repeat.off" = "Без повтора";
+"repeat.one" = "Повтор трека";
+"repeat.all" = "Повтор плейлиста";
+
+"settings.title" = "Настройки";
+"settings.ducking" = "Приглушение";
+"settings.sfx_master_volume" = "Общая громкость SFX";
+"settings.music_columns" = "Колонки треков";
+"settings.effects_columns" = "Колонки эффектов";
+"settings.language" = "Язык";
+"settings.language.english" = "English";
+"settings.language.russian" = "Русский";
+
+"import.files.title" = "Выберите аудиофайлы";
+"import.folder.title" = "Выберите папку с аудио";
+"import.folder.message" = "Приложение добавит поддерживаемые аудиофайлы из выбранной папки и вложенных папок.";
