@@ -95,11 +95,6 @@ NOTARY_PROFILE="AC_NOTARY" \
 Output artifacts will be placed in `dist/`, including notarized zip:
 `dist/Dungeon_Soundboard-macOS-notarized.zip`.
 
-## Screenshots
-
-- Add screenshots here before publishing releases.
-- Suggested: main screen, settings, language switch.
-
 ## Known Limitations
 
 - Audio files are accessed via macOS security-scoped bookmarks. If access is revoked, re-add files/folders.
@@ -114,4 +109,4 @@ MIT — see [LICENSE](./LICENSE).
 ## Кратко по-русски
 
 Приложение для настольных игр: музыка играет непрерывно, а эффекты (SFX) можно запускать поверх неё без переключения трека.  
-Поддерживаются отдельные плейлисты музыки и эффектов, ducking, и переключение языка интерфейса (EN/RU).
+Поддерживаются отдельные плейлисты музыки и эффектов, приглушение, и переключение языка интерфейса (EN/RU).
