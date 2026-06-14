@@ -9,13 +9,17 @@ struct ContentView: View {
 
     @AppStorage(AppLanguage.userDefaultsKey) private var appLanguageRawValue: String = AppLanguage.defaultLanguage.rawValue
     @AppStorage("sidebar_music_pane_height") private var persistedMusicPaneHeight: Double = 220
+    @AppStorage("main_music_pane_height") private var persistedMainMusicPaneHeight: Double = 260
     @State private var musicPaneHeight: CGFloat = 220
+    @State private var mainMusicPaneHeight: CGFloat = 260
     @State private var playlistEditorName: String = ""
     @State private var isSettingsPresented: Bool = false
     @State private var isResizingSidebar: Bool = false
     @State private var isSidebarDividerHovered: Bool = false
+    @State private var isResizingCenterDivider: Bool = false
+    @State private var isCenterDividerHovered: Bool = false
     @State private var sidebarDragStartHeight: CGFloat?
-    @State private var pendingPaneHeightSaveWorkItem: DispatchWorkItem?
+    @State private var centerDividerDragStartHeight: CGFloat?
     @State private var isDeletePlaylistConfirmationPresented: Bool = false
     @State private var selectedMusicTrackIDs: Set<UUID> = []
     @State private var selectedEffectTrackIDs: Set<UUID> = []
@@ -120,6 +124,7 @@ struct ContentView: View {
         .onAppear {
             playlistEditorName = vm.activePlaylistDisplayName
             musicPaneHeight = CGFloat(persistedMusicPaneHeight)
+            mainMusicPaneHeight = CGFloat(persistedMainMusicPaneHeight)
         }
         .onChange(of: vm.activePlaylistEditorTarget) {
             playlistEditorName = vm.activePlaylistDisplayName
@@ -321,24 +326,25 @@ struct ContentView: View {
                 isSidebarDividerHovered = hovered
             }
             .gesture(
-                DragGesture(minimumDistance: 1)
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
                         if sidebarDragStartHeight == nil {
-                            sidebarDragStartHeight = musicPaneHeight
+                            // Захватываем уже ограниченную высоту один раз на старте drag,
+                            // чтобы divider не перескакивал при промежуточных layout/update pass.
+                            sidebarDragStartHeight = clampedMusicPaneHeight(maxHeight: maxHeight)
                         }
 
                         // Меняем высоту в заданных пределах, чтобы обе секции оставались пригодны к скроллу.
-                        let start = sidebarDragStartHeight ?? musicPaneHeight
+                        let start = sidebarDragStartHeight ?? clampedMusicPaneHeight(maxHeight: maxHeight)
                         let updated = min(max(start + value.translation.height, minHeight), maxHeight)
                         isResizingSidebar = true
                         musicPaneHeight = updated
-                        scheduleSidebarHeightSave(updated)
                     }
                     .onEnded { value in
-                        let start = sidebarDragStartHeight ?? musicPaneHeight
+                        let start = sidebarDragStartHeight ?? clampedMusicPaneHeight(maxHeight: maxHeight)
                         let updated = min(max(start + value.translation.height, minHeight), maxHeight)
                         musicPaneHeight = updated
-                        scheduleSidebarHeightSave(updated, immediate: true)
+                        persistSidebarHeight(updated)
                         sidebarDragStartHeight = nil
                         isResizingSidebar = false
                     }
@@ -351,35 +357,82 @@ struct ContentView: View {
         return min(max(musicPaneHeight, minHeight), maxHeight)
     }
 
-    private func scheduleSidebarHeightSave(_ value: CGFloat, immediate: Bool = false) {
-        pendingPaneHeightSaveWorkItem?.cancel()
-
-        // Троттлим запись в UserDefaults, чтобы не писать на каждый пиксель drag.
-        let item = DispatchWorkItem { [value] in
-            persistedMusicPaneHeight = Double(value)
-        }
-        pendingPaneHeightSaveWorkItem = item
-
-        if immediate {
-            DispatchQueue.main.async(execute: item)
-        } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: item)
-        }
+    private func persistSidebarHeight(_ value: CGFloat) {
+        persistedMusicPaneHeight = Double(value)
     }
 
     // MARK: - Центральная зона (50/50)
 
     private var centerArea: some View {
-        VStack(spacing: 0) {
-            musicZone
-                .frame(maxHeight: .infinity)
+        GeometryReader { geometry in
+            let dragHandleHeight: CGFloat = 10
+            let sectionSpacing: CGFloat = 10
+            let contentHeight = max(280, geometry.size.height)
+            let minSectionHeight: CGFloat = 120
+            let maxMusicHeight = max(minSectionHeight, contentHeight - minSectionHeight - dragHandleHeight - sectionSpacing * 2)
+            let topHeight = clampedMainMusicPaneHeight(maxHeight: maxMusicHeight)
+            let bottomHeight = max(minSectionHeight, contentHeight - topHeight - dragHandleHeight - sectionSpacing)
 
-            Divider()
+            VStack(spacing: sectionSpacing) {
+                musicZone
+                    .frame(height: topHeight)
 
-            effectsZone
-                .frame(maxHeight: .infinity)
+                centerAreaDivider(minHeight: minSectionHeight, maxHeight: maxMusicHeight)
+                    .frame(height: dragHandleHeight)
+
+                effectsZone
+                    .frame(height: bottomHeight)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .padding(12)
+    }
+
+    private func centerAreaDivider(minHeight: CGFloat, maxHeight: CGFloat) -> some View {
+        let isHighlighted = isResizingCenterDivider || isCenterDividerHovered
+        return Rectangle()
+            .fill(isHighlighted ? DndTheme.accent.opacity(0.85) : Color.white.opacity(0.16))
+            .overlay {
+                Capsule()
+                    .fill(isHighlighted ? DndTheme.accent.opacity(0.92) : Color.white.opacity(0.26))
+                    .frame(width: 42, height: 4)
+            }
+            .cornerRadius(4)
+            .contentShape(Rectangle())
+            .onHover { hovered in
+                isCenterDividerHovered = hovered
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        if centerDividerDragStartHeight == nil {
+                            centerDividerDragStartHeight = clampedMainMusicPaneHeight(maxHeight: maxHeight)
+                        }
+
+                        let start = centerDividerDragStartHeight ?? clampedMainMusicPaneHeight(maxHeight: maxHeight)
+                        let updated = min(max(start + value.translation.height, minHeight), maxHeight)
+                        isResizingCenterDivider = true
+                        mainMusicPaneHeight = updated
+                    }
+                    .onEnded { value in
+                        let start = centerDividerDragStartHeight ?? clampedMainMusicPaneHeight(maxHeight: maxHeight)
+                        let updated = min(max(start + value.translation.height, minHeight), maxHeight)
+                        mainMusicPaneHeight = updated
+                        persistMainCenterPaneHeight(updated)
+                        centerDividerDragStartHeight = nil
+                        isResizingCenterDivider = false
+                    }
+            )
+            .animation(.easeOut(duration: 0.12), value: isHighlighted)
+    }
+
+    private func clampedMainMusicPaneHeight(maxHeight: CGFloat) -> CGFloat {
+        let minHeight: CGFloat = 120
+        return min(max(mainMusicPaneHeight, minHeight), maxHeight)
+    }
+
+    private func persistMainCenterPaneHeight(_ value: CGFloat) {
+        persistedMainMusicPaneHeight = Double(value)
     }
 
     private var musicZone: some View {
@@ -667,10 +720,6 @@ struct ContentView: View {
                     vm.stopEffects()
                 }
                 .disabled(!vm.hasActiveEffects)
-
-                Button("player.fade_out") {
-                    vm.fadeOutMusic()
-                }
             }
 
             HStack(spacing: 12) {
@@ -779,6 +828,8 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
             }
+
+            Toggle("settings.music_fade_out_on_pause", isOn: $vm.isMusicFadeOutOnPauseEnabled)
 
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("settings.telemetry.sentry_enabled", isOn: $vm.isSentryTelemetryEnabled)
