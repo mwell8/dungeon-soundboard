@@ -55,6 +55,7 @@
 "settings.language" = "Язык";
 "settings.language.english" = "English";
 "settings.language.russian" = "Русский";
+"settings.music_fade_out_on_pause" = "Плавно затихать при паузе музыки";
 
 "import.files.title" = "Выберите аудиофайлы";
 "import.folder.title" = "Выберите папку с аудио";

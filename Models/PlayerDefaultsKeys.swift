@@ -11,6 +11,7 @@ enum PlayerDefaultsKeys {
     static let effectsVolume = "macos_dungeon_soundboard_effects_volume"
     static let repeatMode = "macos_dungeon_soundboard_repeat_mode"
     static let shuffleEnabled = "macos_dungeon_soundboard_shuffle_enabled"
+    static let musicFadeOutOnPauseEnabled = "macos_dungeon_soundboard_music_fade_out_on_pause_enabled"
     static let selectedMusicPlaylistID = "macos_dungeon_soundboard_selected_music_playlist_id"
     static let selectedEffectPlaylistID = "macos_dungeon_soundboard_selected_effect_playlist_id"
     static let legacySelectedPlaylistID = "macos_dungeon_soundboard_selected_playlist_id"

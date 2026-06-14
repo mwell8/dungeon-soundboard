@@ -91,6 +91,14 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         }
     }
 
+    @Published var isMusicFadeOutOnPauseEnabled: Bool = false {
+        didSet {
+            if !isHydratingPreferences {
+                savePreferences()
+            }
+        }
+    }
+
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
     @Published var errorMessage: String? {
@@ -587,8 +595,13 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     func playPause() {
         if isPlaying {
-            pause()
+            if isMusicFadeOutOnPauseEnabled {
+                pauseWithFadeOut()
+            } else {
+                pause()
+            }
         } else if let musicPlayer = musicPlayer {
+            applyMusicVolume(animated: false)
             musicPlayer.play()
             isPlaying = true
         } else {
@@ -602,6 +615,24 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     func pause() {
         musicPlayer?.pause()
         isPlaying = false
+    }
+
+    private func pauseWithFadeOut() {
+        guard let musicPlayer else {
+            pause()
+            return
+        }
+
+        let targetVolume = Float(effectiveMusicVolume())
+        musicPlayer.setVolume(0, fadeDuration: 1.2)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { [weak self, weak musicPlayer] in
+            guard let self, let musicPlayer, self.musicPlayer === musicPlayer else { return }
+            musicPlayer.pause()
+            musicPlayer.volume = targetVolume
+            self.currentTime = musicPlayer.currentTime
+            self.isPlaying = false
+        }
     }
 
     func stop() {
@@ -723,18 +754,6 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     func stopEffects() {
         stopAllEffects()
-    }
-
-    func fadeOutMusic() {
-        guard let musicPlayer else { return }
-        musicPlayer.setVolume(0, fadeDuration: 1.2)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { [weak self] in
-            guard let self else { return }
-            guard let currentPlayer = self.musicPlayer else { return }
-            if currentPlayer.volume <= 0.01 {
-                self.stop()
-            }
-        }
     }
 
     // MARK: - AVAudioPlayerDelegate
@@ -1250,6 +1269,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         defaults.set(effectsVolume, forKey: PlayerDefaultsKeys.effectsVolume)
         defaults.set(repeatMode.rawValue, forKey: PlayerDefaultsKeys.repeatMode)
         defaults.set(isShuffleEnabled, forKey: PlayerDefaultsKeys.shuffleEnabled)
+        defaults.set(isMusicFadeOutOnPauseEnabled, forKey: PlayerDefaultsKeys.musicFadeOutOnPauseEnabled)
         defaults.set(selectedMusicPlaylistID?.uuidString, forKey: PlayerDefaultsKeys.selectedMusicPlaylistID)
         defaults.set(selectedEffectPlaylistID?.uuidString, forKey: PlayerDefaultsKeys.selectedEffectPlaylistID)
         defaults.set(duckingAmount, forKey: PlayerDefaultsKeys.duckingAmount)
@@ -1279,6 +1299,10 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
         if defaults.object(forKey: PlayerDefaultsKeys.shuffleEnabled) != nil {
             isShuffleEnabled = defaults.bool(forKey: PlayerDefaultsKeys.shuffleEnabled)
+        }
+
+        if defaults.object(forKey: PlayerDefaultsKeys.musicFadeOutOnPauseEnabled) != nil {
+            isMusicFadeOutOnPauseEnabled = defaults.bool(forKey: PlayerDefaultsKeys.musicFadeOutOnPauseEnabled)
         }
 
         if defaults.object(forKey: PlayerDefaultsKeys.duckingAmount) != nil {
