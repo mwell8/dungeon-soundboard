@@ -21,4 +21,7 @@ enum PlayerDefaultsKeys {
 
     static let sentryEnabled = "macos_dungeon_soundboard_sentry_enabled"
     static let sentryDSN = "macos_dungeon_soundboard_sentry_dsn"
+    static let theme = "macos_dungeon_soundboard_theme"
+    static let customThemePresets = "macos_dungeon_soundboard_custom_theme_presets"
+    static let hotkeyBindings = "macos_dungeon_soundboard_hotkey_bindings"
 }

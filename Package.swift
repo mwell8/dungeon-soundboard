@@ -22,7 +22,11 @@ let package = Package(
                 "EffectPlaylist.swift",
                 "RepeatMode.swift",
                 "PlayerDefaultsKeys.swift",
-                "PlaylistMigration.swift"
+                "PlaylistMigration.swift",
+                "ThemeColor.swift",
+                "AppTheme.swift",
+                "ThemeRenderer.swift",
+                "Hotkey.swift"
             ]
         ),
         .testTarget(

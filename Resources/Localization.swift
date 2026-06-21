@@ -33,6 +33,11 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
 enum L10n {
     static func tr(_ key: String) -> String {
+        tr(key, language: AppLanguage.current)
+    }
+
+    static func tr(_ key: String, language: AppLanguage) -> String {
+        let activeBundle = bundle(for: language) ?? .main
         let localized = activeBundle.localizedString(forKey: key, value: nil, table: "Localizable")
         if localized != key {
             return localized
@@ -45,8 +50,8 @@ enum L10n {
         return String(format: format, locale: AppLanguage.current.locale, arguments: arguments)
     }
 
-    private static var activeBundle: Bundle {
-        bundle(for: AppLanguage.current) ?? .main
+    static func translations(for key: String) -> Set<String> {
+        Set(AppLanguage.allCases.map { tr(key, language: $0) })
     }
 
     private static var englishBundle: Bundle {

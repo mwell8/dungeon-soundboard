@@ -1,6 +1,6 @@
 import Foundation
 
-final class AppTelemetry {
+final class AppTelemetry: @unchecked Sendable {
     static let shared = AppTelemetry()
 
     private let queue = DispatchQueue(label: "telemetry.queue", qos: .utility)

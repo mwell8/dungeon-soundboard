@@ -11,7 +11,9 @@ Desktop audio app for tabletop sessions: play background music continuously and 
 - Persistent playlists and player preferences.
 - Drag-and-drop import from Finder to Music/SFX zones.
 - Multi-select track management with `Cmd+Click` and `Delete`.
-- SFX hotkeys: `Option+1...9` for first nine effect tiles.
+- Custom app hotkeys for playback, SFX stop, volume control, tracks, and effects.
+- Theme presets, custom visual themes, and background image support.
+- Playlist rename/delete menus and drag-to-reorder playlist sorting.
 
 ## Requirements
 
@@ -53,15 +55,15 @@ xcodebuild -project "Dungeon Soundboard.xcodeproj" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 
 mkdir -p Release
-cp -R ".DerivedData/Build/Products/Release/Dungeon_Soundboard.app" Release/
+cp -R ".DerivedData/Build/Products/Release/Dungeon Soundboard.app" Release/
 ```
 
 Optional zip for GitHub Releases:
 
 ```bash
 ditto -c -k --sequesterRsrc --keepParent \
-  "Release/Dungeon_Soundboard.app" \
-  "Release/Dungeon_Soundboard-unsigned-macOS.zip"
+  "Release/Dungeon Soundboard.app" \
+  "Release/Dungeon-Soundboard-1.0.0-macOS.zip"
 ```
 
 ## First Launch On User Mac (Unsigned App)
@@ -93,7 +95,7 @@ NOTARY_PROFILE="AC_NOTARY" \
 ```
 
 Output artifacts will be placed in `dist/`, including notarized zip:
-`dist/Dungeon_Soundboard-macOS-notarized.zip`.
+`dist/Dungeon-Soundboard-macOS-notarized.zip`.
 
 ## Known Limitations
 

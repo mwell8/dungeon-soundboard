@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		EB37E7892F5B6C3900127E2F /* Dungeon_Soundboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dungeon_Soundboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EB37E7892F5B6C3900127E2F /* Dungeon Soundboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Dungeon Soundboard.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB37E7C92F5B91DF00127E2F /* Dungeon_Soundboard.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Dungeon_Soundboard.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -70,7 +70,7 @@
 		EB37E78A2F5B6C3900127E2F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EB37E7892F5B6C3900127E2F /* Dungeon_Soundboard.app */,
+				EB37E7892F5B6C3900127E2F /* Dungeon Soundboard.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -78,9 +78,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EB37E7882F5B6C3900127E2F /* Dungeon_Soundboard */ = {
+		EB37E7882F5B6C3900127E2F /* Dungeon Soundboard */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EB37E7942F5B6C3900127E2F /* Build configuration list for PBXNativeTarget "Dungeon_Soundboard" */;
+			buildConfigurationList = EB37E7942F5B6C3900127E2F /* Build configuration list for PBXNativeTarget "Dungeon Soundboard" */;
 			buildPhases = (
 				EB37E7852F5B6C3900127E2F /* Sources */,
 				EB37E7862F5B6C3900127E2F /* Frameworks */,
@@ -97,11 +97,11 @@
 				EB37E7B82F5B7F4600127E2F /* ViewModels */,
 				EB37E7C32F5B849700127E2F /* Resources */,
 			);
-			name = Dungeon_Soundboard;
+			name = "Dungeon Soundboard";
 			packageProductDependencies = (
 			);
-			productName = Dungeon_Soundboard;
-			productReference = EB37E7892F5B6C3900127E2F /* Dungeon_Soundboard.app */;
+			productName = "Dungeon Soundboard";
+			productReference = EB37E7892F5B6C3900127E2F /* Dungeon Soundboard.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -134,7 +134,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EB37E7882F5B6C3900127E2F /* Dungeon_Soundboard */,
+				EB37E7882F5B6C3900127E2F /* Dungeon Soundboard */,
 			);
 		};
 /* End PBXProject section */
@@ -274,6 +274,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "Dungeon Soundboard";
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
@@ -285,9 +286,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_ENTITLEMENTS = "";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -303,7 +304,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "MW.Dungeon-Soundboard";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -338,7 +339,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "MW.Dungeon-Soundboard";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -363,7 +364,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EB37E7942F5B6C3900127E2F /* Build configuration list for PBXNativeTarget "Dungeon_Soundboard" */ = {
+		EB37E7942F5B6C3900127E2F /* Build configuration list for PBXNativeTarget "Dungeon Soundboard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EB37E7952F5B6C3900127E2F /* Debug */,

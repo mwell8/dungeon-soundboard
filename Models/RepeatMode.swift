@@ -28,7 +28,7 @@ enum RepeatMode: String, CaseIterable, Codable, Identifiable {
             return mode
         }
 
-        // Backward compatibility for pre-localization persisted raw values.
+        // Совместимость со старыми сохраненными значениями до локализации.
         switch value {
         case "Без повтора":
             return .off

@@ -10,6 +10,7 @@ set -euo pipefail
 #
 # Optional env vars:
 #   APP_SCHEME='Dungeon_Soundboard'
+#   APP_PRODUCT_NAME='Dungeon Soundboard'
 #   APP_PROJECT='Dungeon Soundboard.xcodeproj'
 #   BUILD_DIR='.DerivedDataRelease'
 #   DIST_DIR='dist'
@@ -18,6 +19,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 APP_SCHEME="${APP_SCHEME:-Dungeon_Soundboard}"
+APP_PRODUCT_NAME="${APP_PRODUCT_NAME:-Dungeon Soundboard}"
 APP_PROJECT="${APP_PROJECT:-Dungeon Soundboard.xcodeproj}"
 BUILD_DIR="${BUILD_DIR:-.DerivedDataRelease}"
 DIST_DIR="${DIST_DIR:-dist}"
@@ -38,14 +40,14 @@ xcodebuild \
   -derivedDataPath "$BUILD_DIR" \
   build
 
-APP_PATH="$BUILD_DIR/Build/Products/Release/$APP_SCHEME.app"
+APP_PATH="$BUILD_DIR/Build/Products/Release/$APP_PRODUCT_NAME.app"
 if [[ ! -d "$APP_PATH" ]]; then
   echo "Release app not found at: $APP_PATH" >&2
   exit 1
 fi
 
 cp -R "$APP_PATH" "$DIST_DIR/"
-APP_DIST_PATH="$DIST_DIR/$APP_SCHEME.app"
+APP_DIST_PATH="$DIST_DIR/$APP_PRODUCT_NAME.app"
 
 echo "==> Signing app with Developer ID"
 codesign \
@@ -60,7 +62,7 @@ echo "==> Verifying signature"
 codesign --verify --deep --strict --verbose=2 "$APP_DIST_PATH"
 spctl --assess --type execute --verbose "$APP_DIST_PATH"
 
-ZIP_PATH="$DIST_DIR/$APP_SCHEME.zip"
+ZIP_PATH="$DIST_DIR/Dungeon-Soundboard-notarization.zip"
 echo "==> Creating zip for notarization"
 ditto -c -k --sequesterRsrc --keepParent "$APP_DIST_PATH" "$ZIP_PATH"
 
@@ -71,7 +73,7 @@ echo "==> Stapling notarization ticket"
 xcrun stapler staple "$APP_DIST_PATH"
 xcrun stapler validate "$APP_DIST_PATH"
 
-FINAL_ZIP_PATH="$DIST_DIR/${APP_SCHEME}-macOS-notarized.zip"
+FINAL_ZIP_PATH="$DIST_DIR/Dungeon-Soundboard-macOS-notarized.zip"
 echo "==> Packaging final notarized build"
 ditto -c -k --sequesterRsrc --keepParent "$APP_DIST_PATH" "$FINAL_ZIP_PATH"
 

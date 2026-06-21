@@ -6,13 +6,14 @@ import UniformTypeIdentifiers
 /// Здесь только интерфейс и вызовы методов ViewModel.
 struct ContentView: View {
     @StateObject private var vm = PlayerViewModel()
+    @StateObject private var hotkeyStore = HotkeyStore()
+    @EnvironmentObject private var themeStore: ThemeStore
 
     @AppStorage(AppLanguage.userDefaultsKey) private var appLanguageRawValue: String = AppLanguage.defaultLanguage.rawValue
     @AppStorage("sidebar_music_pane_height") private var persistedMusicPaneHeight: Double = 220
     @AppStorage("main_music_pane_height") private var persistedMainMusicPaneHeight: Double = 260
     @State private var musicPaneHeight: CGFloat = 220
     @State private var mainMusicPaneHeight: CGFloat = 260
-    @State private var playlistEditorName: String = ""
     @State private var isSettingsPresented: Bool = false
     @State private var isResizingSidebar: Bool = false
     @State private var isSidebarDividerHovered: Bool = false
@@ -20,46 +21,61 @@ struct ContentView: View {
     @State private var isCenterDividerHovered: Bool = false
     @State private var sidebarDragStartHeight: CGFloat?
     @State private var centerDividerDragStartHeight: CGFloat?
-    @State private var isDeletePlaylistConfirmationPresented: Bool = false
+    @State private var hoveredMusicPlaylistID: UUID?
+    @State private var hoveredEffectPlaylistID: UUID?
+    @State private var draggingMusicPlaylistID: UUID?
+    @State private var draggingEffectPlaylistID: UUID?
+    @State private var playlistRenameTarget: PlaylistActionTarget?
+    @State private var playlistDeleteTarget: PlaylistActionTarget?
+    @State private var playlistRenameName: String = ""
+    @State private var hoveredMusicTrackID: UUID?
+    @State private var hoveredEffectTrackID: UUID?
+    @State private var hotkeyMonitor: Any?
     @State private var selectedMusicTrackIDs: Set<UUID> = []
     @State private var selectedEffectTrackIDs: Set<UUID> = []
     @State private var isMusicDropTargeted: Bool = false
     @State private var isEffectsDropTargeted: Bool = false
 
+    private var theme: ResolvedTheme {
+        themeStore.resolvedTheme
+    }
+
+    private var metrics: LayoutMetrics {
+        themeStore.layoutMetrics
+    }
+
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [DndTheme.backgroundTop, DndTheme.backgroundBottom],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            backgroundLayer
 
             VStack(spacing: 0) {
                 topBar
-                    .padding(.horizontal, 12)
-                    .padding(.top, 12)
+                    .padding(.horizontal, metrics.panelPadding)
+                    .padding(.top, metrics.panelPadding)
 
                 HStack(spacing: 0) {
                     sidebar
                         .frame(minWidth: 250, idealWidth: 270, maxWidth: 300)
-                        .background(DndTheme.panel.opacity(0.92))
+                        .background(panelSurface(theme.panel, opacity: theme.panelOpacity))
+                        .clipShape(RoundedRectangle(cornerRadius: metricsCornerRadius))
 
                     Divider()
 
                     centerArea
                         .frame(minWidth: 560)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(DndTheme.panel.opacity(0.78))
+                        .background(panelSurface(theme.panel, opacity: theme.panelOpacity * 0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: metricsCornerRadius))
                 }
 
                 Divider()
 
                 playerBar
-                    .padding(12)
-                    .background(DndTheme.panelAlt.opacity(0.95))
+                    .padding(metrics.panelPadding)
+                    .background(panelSurface(theme.panelAlt, opacity: min(theme.panelOpacity + 0.06, 0.98)))
+                    .clipShape(RoundedRectangle(cornerRadius: metricsCornerRadius))
             }
-            .padding(12)
+            .padding(metrics.panelPadding)
         }
         .frame(minWidth: 1080, minHeight: 680)
         .alert("error.title", isPresented: Binding(
@@ -76,8 +92,43 @@ struct ContentView: View {
         } message: {
             Text(vm.errorMessage ?? L10n.tr("error.unknown"))
         }
+        .alert("error.title", isPresented: Binding(
+            get: { themeStore.errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    themeStore.errorMessage = nil
+                }
+            }
+        )) {
+            Button("action.ok", role: .cancel) {
+                themeStore.errorMessage = nil
+            }
+        } message: {
+            Text(themeStore.errorMessage ?? L10n.tr("error.unknown"))
+        }
         .sheet(isPresented: $isSettingsPresented) {
-            settingsView
+            ThemeSettingsView(
+                vm: vm,
+                hotkeyStore: hotkeyStore,
+                appLanguageRawValue: $appLanguageRawValue,
+                isPresented: $isSettingsPresented,
+                onCaptureHotkey: { action in
+                    hotkeyStore.beginCapture(for: action)
+                }
+            )
+            .environmentObject(themeStore)
+        }
+        .sheet(item: $playlistRenameTarget) { target in
+            RenamePlaylistSheet(
+                name: $playlistRenameName,
+                onSave: {
+                    renamePlaylist(target, to: playlistRenameName)
+                    playlistRenameTarget = nil
+                },
+                onCancel: {
+                    playlistRenameTarget = nil
+                }
+            )
         }
         .alert(
             "import.conflicts.title",
@@ -110,24 +161,44 @@ struct ContentView: View {
         }
         .confirmationDialog(
             "playlist.delete.confirm.title",
-            isPresented: $isDeletePlaylistConfirmationPresented,
+            isPresented: Binding(
+                get: { playlistDeleteTarget != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        playlistDeleteTarget = nil
+                    }
+                }
+            ),
             titleVisibility: .visible
         ) {
             Button("action.delete", role: .destructive) {
-                vm.deleteActivePlaylist()
-                playlistEditorName = vm.activePlaylistDisplayName
+                if let target = playlistDeleteTarget {
+                    deletePlaylist(target)
+                }
+                playlistDeleteTarget = nil
             }
             Button("action.cancel", role: .cancel) {}
         } message: {
             Text("playlist.delete.confirm.message")
         }
         .onAppear {
-            playlistEditorName = vm.activePlaylistDisplayName
             musicPaneHeight = CGFloat(persistedMusicPaneHeight)
             mainMusicPaneHeight = CGFloat(persistedMainMusicPaneHeight)
+            vm.refreshLocalizedDefaultPlaylistNames()
+            hotkeyStore.purgeMissingTrackBindings(musicPlaylists: vm.musicPlaylists, effectPlaylists: vm.effectPlaylists)
+            installHotkeyMonitorIfNeeded()
         }
-        .onChange(of: vm.activePlaylistEditorTarget) {
-            playlistEditorName = vm.activePlaylistDisplayName
+        .onDisappear {
+            removeHotkeyMonitor()
+        }
+        .onChange(of: appLanguageRawValue) {
+            vm.refreshLocalizedDefaultPlaylistNames()
+        }
+        .onChange(of: vm.musicPlaylists) {
+            hotkeyStore.purgeMissingTrackBindings(musicPlaylists: vm.musicPlaylists, effectPlaylists: vm.effectPlaylists)
+        }
+        .onChange(of: vm.effectPlaylists) {
+            hotkeyStore.purgeMissingTrackBindings(musicPlaylists: vm.musicPlaylists, effectPlaylists: vm.effectPlaylists)
         }
         .onChange(of: vm.selectedMusicPlaylistID) {
             selectedMusicTrackIDs.removeAll()
@@ -135,20 +206,76 @@ struct ContentView: View {
         .onChange(of: vm.selectedEffectPlaylistID) {
             selectedEffectTrackIDs.removeAll()
         }
-        .onDeleteCommand {
-            if !selectedMusicTrackIDs.isEmpty {
-                vm.removeMusicTracks(selectedMusicTrackIDs)
-                selectedMusicTrackIDs.removeAll()
-            } else if !selectedEffectTrackIDs.isEmpty {
-                vm.removeEffectTracks(selectedEffectTrackIDs)
-                selectedEffectTrackIDs.removeAll()
+        .overlay {
+            if let captureAction = hotkeyStore.captureAction {
+                HotkeyCaptureOverlay(
+                    actionTitle: hotkeyActionTitle(captureAction, vm: vm),
+                    onCancel: {
+                        hotkeyStore.cancelCapture()
+                    }
+                )
             }
         }
-        .overlay(alignment: .topLeading) {
-            hotkeysProxy
-                .frame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .opacity(0)
+    }
+
+    private var metricsCornerRadius: CGFloat {
+        CGFloat(theme.cornerRadius) * metrics.cornerCompaction
+    }
+
+    private var backgroundLayer: some View {
+        ZStack {
+            LinearGradient(
+                colors: [theme.backgroundTop, theme.backgroundBottom],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            if let image = themeStore.backgroundImage, themeStore.theme.background.mode == .image {
+                backgroundImageView(image: image, layoutMode: themeStore.theme.background.layoutMode)
+                    .opacity(theme.backgroundOpacity)
+                    .blur(radius: theme.backgroundBlurRadius)
+
+                Color.black
+                    .opacity(theme.backgroundDimOverlay)
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private func backgroundImageView(image: NSImage, layoutMode: BackgroundLayoutMode) -> some View {
+        GeometryReader { geometry in
+            switch layoutMode {
+            case .fill:
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+            case .fit:
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+            case .center:
+                Image(nsImage: image)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            case .tile:
+                Rectangle()
+                    .fill(ImagePaint(image: Image(nsImage: image), scale: 0.35))
+            }
+        }
+    }
+
+    private func panelSurface(_ color: Color, opacity: Double) -> some View {
+        ZStack {
+            if theme.blurStrength == .high {
+                Rectangle().fill(.ultraThinMaterial)
+            } else if theme.blurStrength == .medium {
+                Rectangle().fill(.thinMaterial)
+            } else {
+                Rectangle().fill(.regularMaterial.opacity(0.4))
+            }
+            color.opacity(opacity)
         }
     }
 
@@ -158,7 +285,7 @@ struct ContentView: View {
         HStack {
             Text("app.title")
                 .font(.headline)
-                .foregroundStyle(DndTheme.textPrimary)
+                .foregroundStyle(theme.textPrimary)
 
             Spacer()
 
@@ -176,14 +303,12 @@ struct ContentView: View {
 
     private var sidebar: some View {
         GeometryReader { geometry in
-            // Высота блока редактора фиксирована для расчёта доступного пространства секций.
-            let editorHeight: CGFloat = 108
             let dragHandleHeight: CGFloat = 10
-            let sectionSpacing: CGFloat = 10
-            let verticalPadding: CGFloat = 12
+            let sectionSpacing = metrics.sectionSpacing
+            let verticalPadding = metrics.panelPadding
             let contentHeight = max(
                 220,
-                geometry.size.height - editorHeight - sectionSpacing - verticalPadding * 2
+                geometry.size.height - sectionSpacing - verticalPadding * 2
             )
             let minSectionHeight: CGFloat = 96
             let maxMusicHeight = max(minSectionHeight, contentHeight - minSectionHeight - dragHandleHeight)
@@ -199,8 +324,6 @@ struct ContentView: View {
 
                 effectPlaylistsSection
                     .frame(height: effectsHeight)
-
-                unifiedPlaylistEditor
             }
             .padding(.horizontal, 12)
             .padding(.vertical, verticalPadding)
@@ -208,11 +331,11 @@ struct ContentView: View {
     }
 
     private var musicPlaylistsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: metrics.sectionSpacing * 0.8) {
             HStack {
                 Text("sidebar.music_playlists")
                     .font(.headline)
-                    .foregroundStyle(DndTheme.textPrimary)
+                    .foregroundStyle(theme.textPrimary)
 
                 Spacer()
 
@@ -222,31 +345,13 @@ struct ContentView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(DndTheme.accent)
+                .foregroundStyle(theme.accent)
             }
 
             List(selection: $vm.selectedMusicPlaylistID) {
                 ForEach(vm.musicPlaylists) { playlist in
-                    HStack(spacing: 8) {
-                        Text(playlist.name)
-                            .foregroundStyle(DndTheme.textPrimary)
-
-                        Spacer()
-
-                        Button {
-                            vm.playMusicPlaylistShuffled(playlist)
-                        } label: {
-                            Image(systemName: "shuffle")
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(DndTheme.accent)
-                        .help("sidebar.shuffle_play")
-                    }
+                    musicPlaylistRow(playlist)
                     .tag(playlist.id)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        vm.setActiveEditorTargetMusic(playlist.id)
-                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -254,11 +359,11 @@ struct ContentView: View {
     }
 
     private var effectPlaylistsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: metrics.sectionSpacing * 0.8) {
             HStack {
                 Text("sidebar.sfx_playlists")
                     .font(.headline)
-                    .foregroundStyle(DndTheme.textPrimary)
+                    .foregroundStyle(theme.textPrimary)
 
                 Spacer()
 
@@ -268,59 +373,165 @@ struct ContentView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(DndTheme.accent)
+                .foregroundStyle(theme.accent)
             }
 
             List(selection: $vm.selectedEffectPlaylistID) {
                 ForEach(vm.effectPlaylists) { playlist in
-                    Text(playlist.name)
-                        .foregroundStyle(DndTheme.textPrimary)
-                        .tag(playlist.id)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            vm.setActiveEditorTargetEffect(playlist.id)
-                        }
+                    effectPlaylistRow(playlist)
+                    .tag(playlist.id)
                 }
             }
             .scrollContentBackground(.hidden)
         }
     }
 
-    private var unifiedPlaylistEditor: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("sidebar.playlist_editor")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DndTheme.textPrimary)
+    private func musicPlaylistRow(_ playlist: Playlist) -> some View {
+        let isHovered = hoveredMusicPlaylistID == playlist.id
+        let isDragging = draggingMusicPlaylistID == playlist.id
+        let controlsOpacity = (isHovered || isDragging) ? 1.0 : 0.0
+        let controlsEnabled = isHovered || isDragging
 
-            TextField("sidebar.playlist_name", text: $playlistEditorName)
-                .textFieldStyle(.roundedBorder)
+        return HStack(spacing: 8) {
+            Text(playlist.name)
+                .foregroundStyle(theme.textPrimary)
+                .lineLimit(1)
 
-            HStack {
-                Button("action.save") {
-                    vm.renameActivePlaylist(to: playlistEditorName)
-                    playlistEditorName = vm.activePlaylistDisplayName
+            Spacer(minLength: 6)
+
+            Button {
+                vm.playMusicPlaylistShuffled(playlist)
+            } label: {
+                Image(systemName: "shuffle")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(theme.accent)
+            .opacity(controlsOpacity)
+            .allowsHitTesting(controlsEnabled)
+            .help("sidebar.shuffle_play")
+
+            playlistDragHandle
+                .opacity(controlsOpacity)
+                .allowsHitTesting(controlsEnabled)
+                .onDrag {
+                    draggingMusicPlaylistID = playlist.id
+                    return NSItemProvider(object: playlist.id.uuidString as NSString)
                 }
-                .disabled(vm.activePlaylistEditorTarget == nil)
 
-                Button("action.delete") {
-                    isDeletePlaylistConfirmationPresented = true
+            playlistActionsMenu(
+                renameAction: {
+                    presentPlaylistRename(.music(playlist.id), currentName: playlist.name)
+                },
+                deleteAction: {
+                    playlistDeleteTarget = .music(playlist.id)
                 }
-                .disabled(vm.activePlaylistEditorTarget == nil)
-                .foregroundStyle(DndTheme.danger)
+            )
+            .opacity(controlsOpacity)
+            .allowsHitTesting(controlsEnabled)
+        }
+        .contentShape(Rectangle())
+        .onHover { hovered in
+            if hovered {
+                hoveredMusicPlaylistID = playlist.id
+            } else if hoveredMusicPlaylistID == playlist.id {
+                hoveredMusicPlaylistID = nil
             }
         }
+        .onDrop(
+            of: [UTType.plainText.identifier],
+            delegate: MusicPlaylistDropDelegate(
+                targetID: playlist.id,
+                vm: vm,
+                draggingID: $draggingMusicPlaylistID
+            )
+        )
+    }
+
+    private func effectPlaylistRow(_ playlist: EffectPlaylist) -> some View {
+        let isHovered = hoveredEffectPlaylistID == playlist.id
+        let isDragging = draggingEffectPlaylistID == playlist.id
+        let controlsOpacity = (isHovered || isDragging) ? 1.0 : 0.0
+        let controlsEnabled = isHovered || isDragging
+
+        return HStack(spacing: 8) {
+            Text(playlist.name)
+                .foregroundStyle(theme.textPrimary)
+                .lineLimit(1)
+
+            Spacer(minLength: 6)
+
+            playlistDragHandle
+                .opacity(controlsOpacity)
+                .allowsHitTesting(controlsEnabled)
+                .onDrag {
+                    draggingEffectPlaylistID = playlist.id
+                    return NSItemProvider(object: playlist.id.uuidString as NSString)
+                }
+
+            playlistActionsMenu(
+                renameAction: {
+                    presentPlaylistRename(.effect(playlist.id), currentName: playlist.name)
+                },
+                deleteAction: {
+                    playlistDeleteTarget = .effect(playlist.id)
+                }
+            )
+            .opacity(controlsOpacity)
+            .allowsHitTesting(controlsEnabled)
+        }
+        .contentShape(Rectangle())
+        .onHover { hovered in
+            if hovered {
+                hoveredEffectPlaylistID = playlist.id
+            } else if hoveredEffectPlaylistID == playlist.id {
+                hoveredEffectPlaylistID = nil
+            }
+        }
+        .onDrop(
+            of: [UTType.plainText.identifier],
+            delegate: EffectPlaylistDropDelegate(
+                targetID: playlist.id,
+                vm: vm,
+                draggingID: $draggingEffectPlaylistID
+            )
+        )
+    }
+
+    private var playlistDragHandle: some View {
+        Image(systemName: "line.3.horizontal")
+            .foregroundStyle(theme.textSecondary)
+            .frame(width: 18, height: 18)
+            .contentShape(Rectangle())
+            .help("playlist.drag_handle")
+    }
+
+    private func playlistActionsMenu(renameAction: @escaping () -> Void, deleteAction: @escaping () -> Void) -> some View {
+        Menu {
+            Button("action.rename") {
+                renameAction()
+            }
+
+            Button("action.delete", role: .destructive) {
+                deleteAction()
+            }
+        } label: {
+            Image(systemName: "gearshape")
+                .frame(width: 18, height: 18)
+        }
+        .menuStyle(.borderlessButton)
+        .help("playlist.actions")
     }
 
     private func sidebarDivider(minHeight: CGFloat, maxHeight: CGFloat) -> some View {
         let isHighlighted = isResizingSidebar || isSidebarDividerHovered
         return Rectangle()
-            .fill(isHighlighted ? DndTheme.accent.opacity(0.85) : Color.white.opacity(0.16))
+            .fill(isHighlighted ? theme.accent.opacity(0.85) : theme.divider)
             .overlay {
                 Capsule()
-                    .fill(isHighlighted ? DndTheme.accent.opacity(0.92) : Color.white.opacity(0.26))
+                    .fill(isHighlighted ? theme.accent.opacity(0.92) : theme.textSecondary.opacity(0.26))
                     .frame(width: 42, height: 4)
             }
-            .cornerRadius(4)
+            .cornerRadius(metricsCornerRadius * 0.3)
             .contentShape(Rectangle())
             .onHover { hovered in
                 isSidebarDividerHovered = hovered
@@ -366,7 +577,7 @@ struct ContentView: View {
     private var centerArea: some View {
         GeometryReader { geometry in
             let dragHandleHeight: CGFloat = 10
-            let sectionSpacing: CGFloat = 10
+            let sectionSpacing = metrics.sectionSpacing
             let contentHeight = max(280, geometry.size.height)
             let minSectionHeight: CGFloat = 120
             let maxMusicHeight = max(minSectionHeight, contentHeight - minSectionHeight - dragHandleHeight - sectionSpacing * 2)
@@ -385,19 +596,19 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .padding(12)
+        .padding(metrics.panelPadding)
     }
 
     private func centerAreaDivider(minHeight: CGFloat, maxHeight: CGFloat) -> some View {
         let isHighlighted = isResizingCenterDivider || isCenterDividerHovered
         return Rectangle()
-            .fill(isHighlighted ? DndTheme.accent.opacity(0.85) : Color.white.opacity(0.16))
+            .fill(isHighlighted ? theme.accent.opacity(0.85) : theme.divider)
             .overlay {
                 Capsule()
-                    .fill(isHighlighted ? DndTheme.accent.opacity(0.92) : Color.white.opacity(0.26))
+                    .fill(isHighlighted ? theme.accent.opacity(0.92) : theme.textSecondary.opacity(0.26))
                     .frame(width: 42, height: 4)
             }
-            .cornerRadius(4)
+            .cornerRadius(metricsCornerRadius * 0.3)
             .contentShape(Rectangle())
             .onHover { hovered in
                 isCenterDividerHovered = hovered
@@ -436,12 +647,12 @@ struct ContentView: View {
     }
 
     private var musicZone: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: metrics.sectionSpacing * 0.8) {
             HStack {
                 Text(vm.selectedMusicPlaylist?.name ?? L10n.tr("empty.music_playlist"))
                     .font(.title3)
                     .bold()
-                    .foregroundStyle(DndTheme.textPrimary)
+                    .foregroundStyle(theme.textPrimary)
 
                 Spacer()
 
@@ -463,7 +674,7 @@ struct ContentView: View {
 
             if vm.selectedMusicPlaylist != nil {
                 ScrollView {
-                    LazyVGrid(columns: gridColumns(vm.musicColumnsCount), spacing: 8) {
+                    LazyVGrid(columns: gridColumns(vm.musicColumnsCount), spacing: metrics.sectionSpacing * 0.8) {
                         ForEach(vm.musicTracks) { track in
                             compactMusicTile(track)
                         }
@@ -474,10 +685,14 @@ struct ContentView: View {
                 emptyState(title: L10n.tr("empty.music_playlist"), icon: "music.note.list")
             }
         }
-        .padding(8)
+        .padding(metrics.panelPadding * 0.8)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isMusicDropTargeted ? DndTheme.accent : Color.clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: metricsCornerRadius)
+                .fill(theme.panel.opacity(theme.panelOpacity * 0.38))
+        )
+        .background(
+            RoundedRectangle(cornerRadius: metricsCornerRadius)
+                .stroke(isMusicDropTargeted ? theme.accent : Color.clear, lineWidth: 2)
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isMusicDropTargeted) { providers in
             handleFileDrop(providers: providers, target: .music)
@@ -485,12 +700,12 @@ struct ContentView: View {
     }
 
     private var effectsZone: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: metrics.sectionSpacing * 0.8) {
             HStack {
                 Text(vm.selectedEffectPlaylist?.name ?? L10n.tr("empty.sfx_playlist"))
                     .font(.title3)
                     .bold()
-                    .foregroundStyle(DndTheme.textPrimary)
+                    .foregroundStyle(theme.textPrimary)
 
                 Spacer()
 
@@ -512,7 +727,7 @@ struct ContentView: View {
 
             if vm.selectedEffectPlaylist != nil {
                 ScrollView {
-                    LazyVGrid(columns: gridColumns(vm.effectsColumnsCount), spacing: 8) {
+                    LazyVGrid(columns: gridColumns(vm.effectsColumnsCount), spacing: metrics.sectionSpacing * 0.8) {
                         ForEach(vm.effectTracks) { track in
                             compactEffectTile(track)
                         }
@@ -523,10 +738,14 @@ struct ContentView: View {
                 emptyState(title: L10n.tr("empty.sfx_playlist"), icon: "waveform.path")
             }
         }
-        .padding(8)
+        .padding(metrics.panelPadding * 0.8)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isEffectsDropTargeted ? DndTheme.accent : Color.clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: metricsCornerRadius)
+                .fill(theme.panel.opacity(theme.panelOpacity * 0.38))
+        )
+        .background(
+            RoundedRectangle(cornerRadius: metricsCornerRadius)
+                .stroke(isEffectsDropTargeted ? theme.accent : Color.clear, lineWidth: 2)
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isEffectsDropTargeted) { providers in
             handleFileDrop(providers: providers, target: .effect)
@@ -539,17 +758,30 @@ struct ContentView: View {
 
     private func compactMusicTile(_ track: Track) -> some View {
         let isSelected = selectedMusicTrackIDs.contains(track.id)
+        let action = vm.selectedMusicPlaylistID.map { HotkeyAction.playMusicTrack(playlistID: $0, trackID: track.id) }
+        let hotkey = action.flatMap { hotkeyStore.hotkey(for: $0) }
+        let isHovered = hoveredMusicTrackID == track.id
         return HStack(spacing: 8) {
             Text(track.title)
                 .font(.callout)
-                .foregroundStyle(DndTheme.textPrimary)
+                .foregroundStyle(theme.textPrimary)
                 .lineLimit(1)
 
             Spacer(minLength: 6)
 
+            if let hotkey {
+                hotkeyBadge(hotkey)
+            }
+
             if vm.currentTrackID == track.id {
                 Image(systemName: vm.isPlaying ? "speaker.wave.2.fill" : "pause.circle")
-                    .foregroundStyle(DndTheme.accent)
+                    .foregroundStyle(theme.accent)
+            }
+
+            if let action {
+                trackActionsMenu(action)
+                    .opacity(isHovered ? 1 : 0)
+                    .allowsHitTesting(isHovered)
             }
 
             Button(role: .destructive) {
@@ -558,22 +790,22 @@ struct ContentView: View {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(DndTheme.danger)
+            .foregroundStyle(theme.danger)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
+        .padding(.vertical, metrics.sectionSpacing * 0.8)
+        .padding(.horizontal, metrics.panelPadding * 0.85)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: metricsCornerRadius * 0.75)
                 .fill(
                     isSelected
-                        ? DndTheme.accentSoft.opacity(0.45)
-                        : (vm.currentTrackID == track.id ? DndTheme.cardCurrent : DndTheme.card.opacity(0.65))
+                        ? theme.accentSoft.opacity(0.45)
+                        : (vm.currentTrackID == track.id ? theme.cardCurrent : theme.card.opacity(0.65))
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: metricsCornerRadius * 0.75)
                 .stroke(
-                    isSelected ? DndTheme.accent.opacity(0.75) : (vm.currentTrackID == track.id ? DndTheme.accent.opacity(0.45) : Color.white.opacity(0.05)),
+                    isSelected ? theme.accent.opacity(0.75) : (vm.currentTrackID == track.id ? theme.accent.opacity(0.45) : theme.divider.opacity(0.45)),
                     lineWidth: 1
                 )
         )
@@ -586,9 +818,28 @@ struct ContentView: View {
             selectedMusicTrackIDs = [track.id]
             vm.playMusicTrack(track)
         }
+        .onHover { hovered in
+            if hovered {
+                hoveredMusicTrackID = track.id
+            } else if hoveredMusicTrackID == track.id {
+                hoveredMusicTrackID = nil
+            }
+        }
         .contextMenu {
             Button("action.play") {
                 vm.playMusicTrack(track)
+            }
+
+            if let action {
+                Button("hotkeys.assign") {
+                    hotkeyStore.beginCapture(for: action)
+                }
+
+                if hotkeyStore.hotkey(for: action) != nil {
+                    Button("hotkeys.clear") {
+                        hotkeyStore.clear(action)
+                    }
+                }
             }
 
             Button("action.delete", role: .destructive) {
@@ -602,19 +853,25 @@ struct ContentView: View {
 
     private func compactEffectTile(_ track: Track) -> some View {
         let isSelected = selectedEffectTrackIDs.contains(track.id)
-        let hotkey = effectHotkeyLabel(for: track.id)
+        let action = vm.selectedEffectPlaylistID.map { HotkeyAction.playEffect(playlistID: $0, trackID: track.id) }
+        let hotkey = action.flatMap { hotkeyStore.hotkey(for: $0) }
+        let isHovered = hoveredEffectTrackID == track.id
         return HStack(spacing: 8) {
             Text(track.title)
                 .font(.callout)
-                .foregroundStyle(DndTheme.textPrimary)
+                .foregroundStyle(theme.textPrimary)
                 .lineLimit(1)
 
             Spacer(minLength: 6)
 
             if let hotkey {
-                Text(hotkey)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(DndTheme.textSecondary)
+                hotkeyBadge(hotkey)
+            }
+
+            if let action {
+                trackActionsMenu(action)
+                    .opacity(isHovered ? 1 : 0)
+                    .allowsHitTesting(isHovered)
             }
 
             Button {
@@ -623,7 +880,7 @@ struct ContentView: View {
                 Image(systemName: "play.circle.fill")
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(DndTheme.accent)
+            .foregroundStyle(theme.accent)
 
             Button(role: .destructive) {
                 let ids = selectedEffectTrackIDs.contains(track.id) ? selectedEffectTrackIDs : [track.id]
@@ -633,17 +890,17 @@ struct ContentView: View {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(DndTheme.danger)
+            .foregroundStyle(theme.danger)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
+        .padding(.vertical, metrics.sectionSpacing * 0.8)
+        .padding(.horizontal, metrics.panelPadding * 0.85)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isSelected ? DndTheme.accentSoft.opacity(0.45) : DndTheme.card.opacity(0.65))
+            RoundedRectangle(cornerRadius: metricsCornerRadius * 0.75)
+                .fill(isSelected ? theme.accentSoft.opacity(0.45) : theme.card.opacity(0.65))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected ? DndTheme.accent.opacity(0.75) : Color.white.opacity(0.05), lineWidth: 1)
+            RoundedRectangle(cornerRadius: metricsCornerRadius * 0.75)
+                .stroke(isSelected ? theme.accent.opacity(0.75) : theme.divider.opacity(0.45), lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture {
@@ -654,9 +911,28 @@ struct ContentView: View {
             selectedEffectTrackIDs = [track.id]
             vm.playEffect(track)
         }
+        .onHover { hovered in
+            if hovered {
+                hoveredEffectTrackID = track.id
+            } else if hoveredEffectTrackID == track.id {
+                hoveredEffectTrackID = nil
+            }
+        }
         .contextMenu {
             Button("action.play") {
                 vm.playEffect(track)
+            }
+
+            if let action {
+                Button("hotkeys.assign") {
+                    hotkeyStore.beginCapture(for: action)
+                }
+
+                if hotkeyStore.hotkey(for: action) != nil {
+                    Button("hotkeys.clear") {
+                        hotkeyStore.clear(action)
+                    }
+                }
             }
 
             Button("action.delete", role: .destructive) {
@@ -668,15 +944,44 @@ struct ContentView: View {
         .help(track.path)
     }
 
+    private func hotkeyBadge(_ hotkey: Hotkey) -> some View {
+        Text(hotkey.displayText)
+            .font(.caption2.monospaced())
+            .foregroundStyle(theme.textSecondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(theme.panelAlt.opacity(theme.panelOpacity * 0.75))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+
+    private func trackActionsMenu(_ action: HotkeyAction) -> some View {
+        Menu {
+            Button("hotkeys.assign") {
+                hotkeyStore.beginCapture(for: action)
+            }
+
+            if hotkeyStore.hotkey(for: action) != nil {
+                Button("hotkeys.clear") {
+                    hotkeyStore.clear(action)
+                }
+            }
+        } label: {
+            Image(systemName: "gearshape")
+                .frame(width: 18, height: 18)
+        }
+        .menuStyle(.borderlessButton)
+        .help("hotkeys.track_menu")
+    }
+
     private func emptyState(title: String, icon: String) -> some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.system(size: 30))
-                .foregroundStyle(DndTheme.accent)
+                .foregroundStyle(theme.accent)
 
             Text(title)
                 .font(.headline)
-                .foregroundStyle(DndTheme.textPrimary)
+                .foregroundStyle(theme.textPrimary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -684,16 +989,16 @@ struct ContentView: View {
     // MARK: - Нижняя панель
 
     private var playerBar: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: metrics.sectionSpacing) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(vm.currentTrack?.title ?? L10n.tr("player.nothing_playing"))
                         .font(.headline)
-                        .foregroundStyle(DndTheme.textPrimary)
+                        .foregroundStyle(theme.textPrimary)
 
-                    Text(vm.selectedMusicPlaylist?.name ?? "")
+                    Text(vm.playbackMusicPlaylist?.name ?? vm.selectedMusicPlaylist?.name ?? "")
                         .font(.caption)
-                        .foregroundStyle(DndTheme.textSecondary)
+                        .foregroundStyle(theme.textSecondary)
                 }
 
                 Spacer()
@@ -702,7 +1007,7 @@ struct ContentView: View {
                     Image(systemName: vm.isShuffleEnabled ? "shuffle.circle.fill" : "shuffle.circle")
                 }
                 .toggleStyle(.button)
-                .foregroundStyle(DndTheme.accent)
+                .foregroundStyle(theme.accent)
                 .help("player.shuffle")
 
                 Picker("player.repeat", selection: $vm.repeatMode) {
@@ -722,7 +1027,7 @@ struct ContentView: View {
                 .disabled(!vm.hasActiveEffects)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: metrics.sectionSpacing + 2) {
                 Button {
                     vm.previousTrack()
                 } label: {
@@ -735,7 +1040,6 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
                 }
-                .keyboardShortcut(.space, modifiers: [])
 
                 Button {
                     vm.nextTrack()
@@ -754,103 +1058,23 @@ struct ContentView: View {
 
                 Text("\(formatTime(vm.currentTime)) / \(formatTime(vm.duration))")
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(DndTheme.textPrimary)
+                    .foregroundStyle(theme.textPrimary)
                     .frame(width: 110, alignment: .trailing)
 
                 Image(systemName: "speaker.fill")
-                    .foregroundStyle(DndTheme.textPrimary)
+                    .foregroundStyle(theme.textPrimary)
 
                 Slider(value: $vm.volume, in: 0...1)
-                    .frame(width: 120)
+                    .frame(width: metrics.controlWidth)
 
                 Image(systemName: "waveform.path")
-                    .foregroundStyle(DndTheme.textPrimary)
+                    .foregroundStyle(theme.textPrimary)
 
                 Slider(value: $vm.effectsVolume, in: 0...1)
-                    .frame(width: 120)
+                    .frame(width: metrics.controlWidth)
             }
             .buttonStyle(.bordered)
         }
-    }
-
-    // MARK: - Настройки
-
-    private var settingsView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("settings.title")
-                .font(.title2)
-                .bold()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("settings.ducking")
-                    .font(.headline)
-
-                HStack {
-                    Slider(value: $vm.duckingAmount, in: 0.2...1.0)
-                    Text("\(Int(vm.duckingAmount * 100))%")
-                        .frame(width: 48, alignment: .trailing)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("settings.music_columns")
-                    .font(.headline)
-
-                Picker("settings.music_columns", selection: $vm.musicColumnsCount) {
-                    Text("2").tag(2)
-                    Text("3").tag(3)
-                    Text("4").tag(4)
-                }
-                .pickerStyle(.segmented)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("settings.effects_columns")
-                    .font(.headline)
-
-                Picker("settings.effects_columns", selection: $vm.effectsColumnsCount) {
-                    Text("2").tag(2)
-                    Text("3").tag(3)
-                    Text("4").tag(4)
-                }
-                .pickerStyle(.segmented)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("settings.language")
-                    .font(.headline)
-
-                Picker("settings.language", selection: $appLanguageRawValue) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(LocalizedStringKey(language.displayNameKey))
-                            .tag(language.rawValue)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            Toggle("settings.music_fade_out_on_pause", isOn: $vm.isMusicFadeOutOnPauseEnabled)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("settings.telemetry.sentry_enabled", isOn: $vm.isSentryTelemetryEnabled)
-                TextField("settings.telemetry.sentry_dsn", text: $vm.sentryDSN)
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(!vm.isSentryTelemetryEnabled)
-            }
-
-            Spacer()
-
-            HStack {
-                Spacer()
-                Button("action.done") {
-                    isSettingsPresented = false
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(20)
-        .frame(minWidth: 460, minHeight: 360)
-        .background(DndTheme.panel)
     }
 
     // MARK: - Вспомогательное
@@ -883,6 +1107,131 @@ struct ContentView: View {
         }
     }
 
+    private func installHotkeyMonitorIfNeeded() {
+        guard hotkeyMonitor == nil else { return }
+        hotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleKeyDown(event)
+        }
+    }
+
+    private func removeHotkeyMonitor() {
+        if let hotkeyMonitor {
+            NSEvent.removeMonitor(hotkeyMonitor)
+            self.hotkeyMonitor = nil
+        }
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        if let captureAction = hotkeyStore.captureAction {
+            if event.keyCode == 53 {
+                hotkeyStore.cancelCapture()
+                return nil
+            }
+
+            guard let hotkey = Hotkey.from(event: event) else {
+                return nil
+            }
+            assignCapturedHotkey(hotkey, to: captureAction)
+            return nil
+        }
+
+        guard !isTextInputActive(), let hotkey = Hotkey.from(event: event) else {
+            return event
+        }
+
+        guard let action = hotkeyStore.action(for: hotkey) else {
+            return event
+        }
+
+        executeHotkeyAction(action)
+        return nil
+    }
+
+    private func isTextInputActive() -> Bool {
+        guard let responder = NSApp.keyWindow?.firstResponder else { return false }
+        return responder is NSTextView || responder is NSText
+    }
+
+    private func assignCapturedHotkey(_ hotkey: Hotkey, to action: HotkeyAction) {
+        hotkeyStore.cancelCapture()
+        if let conflict = hotkeyStore.assign(hotkey, to: action, resolvingConflicts: false) {
+            let alert = NSAlert()
+            alert.messageText = L10n.tr("hotkeys.conflict.title")
+            alert.informativeText = L10n.tr(
+                "hotkeys.conflict.message",
+                hotkey.displayText,
+                hotkeyActionTitle(conflict.existingAction, vm: vm)
+            )
+            alert.addButton(withTitle: L10n.tr("hotkeys.conflict.replace"))
+            alert.addButton(withTitle: L10n.tr("action.cancel"))
+            if alert.runModal() == .alertFirstButtonReturn {
+                _ = hotkeyStore.assign(hotkey, to: action, resolvingConflicts: true)
+            }
+        }
+    }
+
+    private func executeHotkeyAction(_ action: HotkeyAction) {
+        switch action {
+        case .stopAll:
+            vm.stop()
+        case .stopEffects:
+            vm.stopEffects()
+        case .playPause:
+            vm.playPause()
+        case .musicVolumeUp:
+            vm.adjustMusicVolume(by: 0.05)
+        case .musicVolumeDown:
+            vm.adjustMusicVolume(by: -0.05)
+        case .effectsVolumeUp:
+            vm.adjustEffectsVolume(by: 0.05)
+        case .effectsVolumeDown:
+            vm.adjustEffectsVolume(by: -0.05)
+        case .playMusicTrack(let playlistID, let trackID):
+            if !vm.playMusicTrack(playlistID: playlistID, trackID: trackID) {
+                hotkeyStore.clear(action)
+            }
+        case .playEffect(let playlistID, let trackID):
+            if !vm.playEffect(playlistID: playlistID, trackID: trackID) {
+                hotkeyStore.clear(action)
+            }
+        }
+    }
+
+    private func presentPlaylistRename(_ target: PlaylistActionTarget, currentName: String) {
+        playlistRenameName = currentName
+        playlistRenameTarget = target
+    }
+
+    private func renamePlaylist(_ target: PlaylistActionTarget, to newName: String) {
+        switch target {
+        case .music(let id):
+            vm.renameMusicPlaylist(id, to: newName)
+        case .effect(let id):
+            vm.renameEffectPlaylist(id, to: newName)
+        }
+    }
+
+    private func deletePlaylist(_ target: PlaylistActionTarget) {
+        switch target {
+        case .music(let id):
+            vm.deleteMusicPlaylist(id)
+        case .effect(let id):
+            vm.deleteEffectPlaylist(id)
+        }
+    }
+
+    private enum PlaylistActionTarget: Identifiable, Equatable {
+        case music(UUID)
+        case effect(UUID)
+
+        var id: String {
+            switch self {
+            case .music(let id): return "music-\(id.uuidString)"
+            case .effect(let id): return "effect-\(id.uuidString)"
+            }
+        }
+    }
+
     private enum DropTarget {
         case music
         case effect
@@ -890,8 +1239,7 @@ struct ContentView: View {
 
     private func handleFileDrop(providers: [NSItemProvider], target: DropTarget) -> Bool {
         let group = DispatchGroup()
-        var collected: [URL] = []
-        let lock = NSLock()
+        let collected = DroppedURLCollector()
         let typeID = UTType.fileURL.identifier
 
         for provider in providers where provider.hasItemConformingToTypeIdentifier(typeID) {
@@ -905,9 +1253,7 @@ struct ContentView: View {
                     url = fileURL
                 }
                 if let url {
-                    lock.lock()
                     collected.append(url)
-                    lock.unlock()
                 }
             }
         }
@@ -915,29 +1261,171 @@ struct ContentView: View {
         group.notify(queue: .main) {
             switch target {
             case .music:
-                vm.importDroppedMusicURLs(collected)
+                vm.importDroppedMusicURLs(collected.snapshot())
             case .effect:
-                vm.importDroppedEffectURLs(collected)
+                vm.importDroppedEffectURLs(collected.snapshot())
             }
         }
         return true
     }
 
-    private var hotkeysProxy: some View {
-        Group {
-            ForEach(Array(vm.effectTracks.prefix(9).enumerated()), id: \.offset) { index, track in
-                Button("") {
-                    vm.playEffect(track)
-                }
-                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.option])
-            }
-        }
+}
+
+private final class DroppedURLCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var urls: [URL] = []
+
+    func append(_ url: URL) {
+        lock.lock()
+        urls.append(url)
+        lock.unlock()
     }
 
-    private func effectHotkeyLabel(for trackID: UUID) -> String? {
-        guard let index = vm.effectTracks.firstIndex(where: { $0.id == trackID }), index < 9 else {
-            return nil
+    func snapshot() -> [URL] {
+        lock.lock()
+        defer { lock.unlock() }
+        return urls
+    }
+}
+
+@MainActor
+func hotkeyActionTitle(_ action: HotkeyAction, vm: PlayerViewModel) -> String {
+    switch action {
+    case .stopAll:
+        return L10n.tr("hotkeys.action.stop_all")
+    case .stopEffects:
+        return L10n.tr("hotkeys.action.stop_effects")
+    case .playPause:
+        return L10n.tr("hotkeys.action.play_pause")
+    case .musicVolumeUp:
+        return L10n.tr("hotkeys.action.music_volume_up")
+    case .musicVolumeDown:
+        return L10n.tr("hotkeys.action.music_volume_down")
+    case .effectsVolumeUp:
+        return L10n.tr("hotkeys.action.effects_volume_up")
+    case .effectsVolumeDown:
+        return L10n.tr("hotkeys.action.effects_volume_down")
+    case .playMusicTrack(let playlistID, let trackID):
+        let playlist = vm.musicPlaylists.first { $0.id == playlistID }
+        let track = playlist?.tracks.first { $0.id == trackID }
+        guard let track else { return L10n.tr("hotkeys.action.missing_track") }
+        if let playlist {
+            return "\(track.title) · \(playlist.name)"
         }
-        return "⌥\(index + 1)"
+        return track.title
+    case .playEffect(let playlistID, let trackID):
+        let playlist = vm.effectPlaylists.first { $0.id == playlistID }
+        let track = playlist?.effects.first { $0.id == trackID }
+        guard let track else { return L10n.tr("hotkeys.action.missing_track") }
+        if let playlist {
+            return "\(track.title) · \(playlist.name)"
+        }
+        return track.title
+    }
+}
+
+struct HotkeyCaptureOverlay: View {
+    let actionTitle: String
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("hotkeys.capture.title")
+                .font(.headline)
+            Text(actionTitle)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+            Text("hotkeys.capture.hint")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button("action.cancel") {
+                onCancel()
+            }
+            .keyboardShortcut(.cancelAction)
+        }
+        .padding(20)
+        .frame(width: 340)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(radius: 18)
+    }
+}
+
+private struct MusicPlaylistDropDelegate: DropDelegate {
+    let targetID: UUID
+    let vm: PlayerViewModel
+    @Binding var draggingID: UUID?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingID != nil
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingID else { return }
+        vm.moveMusicPlaylist(draggingID, to: targetID)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingID = nil
+        return true
+    }
+}
+
+private struct EffectPlaylistDropDelegate: DropDelegate {
+    let targetID: UUID
+    let vm: PlayerViewModel
+    @Binding var draggingID: UUID?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingID != nil
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingID else { return }
+        vm.moveEffectPlaylist(draggingID, to: targetID)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingID = nil
+        return true
+    }
+}
+
+private struct RenamePlaylistSheet: View {
+    @Binding var name: String
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("playlist.rename.title")
+                .font(.headline)
+
+            TextField("sidebar.playlist_name", text: $name)
+                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Spacer()
+                Button("action.cancel") {
+                    onCancel()
+                }
+                Button("action.save") {
+                    onSave()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
     }
 }

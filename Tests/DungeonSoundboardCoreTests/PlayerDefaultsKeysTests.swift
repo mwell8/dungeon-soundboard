@@ -15,5 +15,8 @@ final class PlayerDefaultsKeysTests: XCTestCase {
         XCTAssertEqual(PlayerDefaultsKeys.shuffleEnabled, "macos_dungeon_soundboard_shuffle_enabled")
         XCTAssertEqual(PlayerDefaultsKeys.selectedMusicPlaylistID, "macos_dungeon_soundboard_selected_music_playlist_id")
         XCTAssertEqual(PlayerDefaultsKeys.selectedEffectPlaylistID, "macos_dungeon_soundboard_selected_effect_playlist_id")
+        XCTAssertEqual(PlayerDefaultsKeys.theme, "macos_dungeon_soundboard_theme")
+        XCTAssertEqual(PlayerDefaultsKeys.customThemePresets, "macos_dungeon_soundboard_custom_theme_presets")
+        XCTAssertEqual(PlayerDefaultsKeys.hotkeyBindings, "macos_dungeon_soundboard_hotkey_bindings")
     }
 }

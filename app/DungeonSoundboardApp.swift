@@ -2,8 +2,9 @@ import SwiftUI
 
 @main
 struct DungeonSoundboardApp: App {
-    // App-level locale injection gives instant runtime language switching in SwiftUI views.
+    // Локаль на уровне приложения даёт мгновенное переключение языка в SwiftUI.
     @AppStorage(AppLanguage.userDefaultsKey) private var appLanguageRawValue: String = AppLanguage.defaultLanguage.rawValue
+    @StateObject private var themeStore = ThemeStore()
 
     init() {
         AppTelemetry.shared.installCrashHandlers()
@@ -16,7 +17,8 @@ struct DungeonSoundboardApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .tint(DndTheme.accent)
+                .environmentObject(themeStore)
+                .tint(themeStore.resolvedTheme.accent)
                 .environment(\.locale, appLanguage.locale)
         }
     }

@@ -1,17 +1,13 @@
 import Foundation
 import Combine
 import AppKit
-import AVFAudio
+@preconcurrency import AVFAudio
 import UniformTypeIdentifiers
 
 /// Главная логика плеера.
 /// Разделяет музыкальные и SFX-плейлисты и управляет воспроизведением.
-final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
-    enum PlaylistEditorTarget: Equatable {
-        case music(UUID)
-        case effect(UUID)
-    }
-
+@MainActor
+final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudioPlayerDelegate {
     struct ImportConflictSummary: Identifiable, Equatable {
         let id = UUID()
         let target: String
@@ -43,6 +39,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     @Published var currentTrackID: UUID?
+    @Published private(set) var playbackMusicPlaylistID: UUID?
     @Published var isPlaying: Bool = false
 
     @Published var volume: Double = 0.8 {
@@ -132,7 +129,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     @Published var duckingAmount: Double = 0.55 {
         didSet {
-            // Ducking ограничен безопасным диапазоном, чтобы музыка не "исчезала" полностью.
+            // Приглушение ограничено безопасным диапазоном, чтобы музыка не "исчезала" полностью.
             let clamped = clampedDuckingAmount(duckingAmount)
             if clamped != duckingAmount {
                 duckingAmount = clamped
@@ -170,8 +167,6 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             }
         }
     }
-
-    @Published var activePlaylistEditorTarget: PlaylistEditorTarget?
 
     // MARK: - Внутренние свойства
 
@@ -212,8 +207,16 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     deinit {
         timer?.invalidate()
-        stopAllEffects()
-        releaseScopedResource()
+        musicPlayer?.stop()
+        for (key, effectPlayer) in effectPlayers {
+            effectPlayer.stop()
+            if let resource = effectScopedResources[key], resource.hasScope {
+                resource.url.stopAccessingSecurityScopedResource()
+            }
+        }
+        if hasActiveSecurityScope, let activeScopedURL {
+            activeScopedURL.stopAccessingSecurityScopedResource()
+        }
     }
 
     // MARK: - Вычисляемые свойства
@@ -233,13 +236,24 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         return musicPlaylists[index]
     }
 
+    var playbackMusicPlaylistIndex: Int? {
+        let playlistID = playbackMusicPlaylistID ?? selectedMusicPlaylistID
+        guard let playlistID else { return nil }
+        return musicPlaylists.firstIndex(where: { $0.id == playlistID })
+    }
+
+    var playbackMusicPlaylist: Playlist? {
+        guard let index = playbackMusicPlaylistIndex else { return nil }
+        return musicPlaylists[index]
+    }
+
     var selectedEffectPlaylist: EffectPlaylist? {
         guard let index = selectedEffectPlaylistIndex else { return nil }
         return effectPlaylists[index]
     }
 
     var currentTrack: Track? {
-        guard let playlist = selectedMusicPlaylist, let currentTrackID else { return nil }
+        guard let playlist = playbackMusicPlaylist, let currentTrackID else { return nil }
         return playlist.tracks.first(where: { $0.id == currentTrackID })
     }
 
@@ -255,45 +269,46 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         !effectPlayers.isEmpty
     }
 
-    var activePlaylistDisplayName: String {
-        guard let target = activePlaylistEditorTarget else { return "" }
-        switch target {
-        case .music(let id):
-            return musicPlaylists.first(where: { $0.id == id })?.name ?? ""
-        case .effect(let id):
-            return effectPlaylists.first(where: { $0.id == id })?.name ?? ""
-        }
-    }
-
     // MARK: - Музыкальные плейлисты
 
     func createMusicPlaylist() {
         let playlist = Playlist(name: nextMusicPlaylistName())
         musicPlaylists.append(playlist)
         selectedMusicPlaylistID = playlist.id
-        activePlaylistEditorTarget = .music(playlist.id)
         saveState()
     }
 
     func renameSelectedMusicPlaylist(to newName: String) {
-        guard let index = selectedMusicPlaylistIndex else { return }
+        guard let selectedMusicPlaylistID else { return }
+        renameMusicPlaylist(selectedMusicPlaylistID, to: newName)
+    }
+
+    func renameMusicPlaylist(_ playlistID: UUID, to newName: String) {
+        guard let index = musicPlaylists.firstIndex(where: { $0.id == playlistID }) else { return }
 
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         musicPlaylists[index].name = trimmed
-        activePlaylistEditorTarget = .music(musicPlaylists[index].id)
         saveState()
     }
 
     func deleteSelectedMusicPlaylist() {
-        guard let index = selectedMusicPlaylistIndex else { return }
+        guard let selectedMusicPlaylistID else { return }
+        deleteMusicPlaylist(selectedMusicPlaylistID)
+    }
+
+    func deleteMusicPlaylist(_ playlistID: UUID) {
+        guard let index = musicPlaylists.firstIndex(where: { $0.id == playlistID }) else { return }
 
         let deletedPlaylist = musicPlaylists[index]
+        let wasSelected = selectedMusicPlaylistID == deletedPlaylist.id
+        let wasPlaybackContext = playbackMusicPlaylistID == deletedPlaylist.id
 
-        if selectedMusicPlaylistID == deletedPlaylist.id {
+        if wasSelected || wasPlaybackContext {
             stop()
             currentTrackID = nil
+            playbackMusicPlaylistID = nil
         }
 
         let deletedIDs = Set(deletedPlaylist.tracks.map { $0.id })
@@ -305,14 +320,24 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             let playlist = Playlist(name: L10n.tr("playlist.main.default"))
             musicPlaylists = [playlist]
             selectedMusicPlaylistID = playlist.id
-            activePlaylistEditorTarget = .music(playlist.id)
-        } else {
-            selectedMusicPlaylistID = musicPlaylists.first?.id
-            if let id = selectedMusicPlaylistID {
-                activePlaylistEditorTarget = .music(id)
-            }
+        } else if wasSelected {
+            let nextIndex = min(index, musicPlaylists.count - 1)
+            selectedMusicPlaylistID = musicPlaylists[nextIndex].id
         }
 
+        saveState()
+    }
+
+    func moveMusicPlaylist(_ draggedID: UUID, to targetID: UUID) {
+        guard draggedID != targetID,
+              let sourceIndex = musicPlaylists.firstIndex(where: { $0.id == draggedID }),
+              let targetIndex = musicPlaylists.firstIndex(where: { $0.id == targetID }) else {
+            return
+        }
+
+        let playlist = musicPlaylists.remove(at: sourceIndex)
+        let destinationIndex = min(targetIndex, musicPlaylists.count)
+        musicPlaylists.insert(playlist, at: destinationIndex)
         saveState()
     }
 
@@ -320,7 +345,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         guard let playlistIndex = musicPlaylists.firstIndex(where: { $0.id == playlist.id }) else { return }
 
         selectedMusicPlaylistID = playlist.id
-        activePlaylistEditorTarget = .music(playlist.id)
+        playbackMusicPlaylistID = playlist.id
         isShuffleEnabled = true
 
         let playlist = musicPlaylists[playlistIndex]
@@ -335,25 +360,34 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         let playlist = EffectPlaylist(name: nextEffectPlaylistName())
         effectPlaylists.append(playlist)
         selectedEffectPlaylistID = playlist.id
-        activePlaylistEditorTarget = .effect(playlist.id)
         saveState()
     }
 
     func renameSelectedEffectPlaylist(to newName: String) {
-        guard let index = selectedEffectPlaylistIndex else { return }
+        guard let selectedEffectPlaylistID else { return }
+        renameEffectPlaylist(selectedEffectPlaylistID, to: newName)
+    }
+
+    func renameEffectPlaylist(_ playlistID: UUID, to newName: String) {
+        guard let index = effectPlaylists.firstIndex(where: { $0.id == playlistID }) else { return }
 
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         effectPlaylists[index].name = trimmed
-        activePlaylistEditorTarget = .effect(effectPlaylists[index].id)
         saveState()
     }
 
     func deleteSelectedEffectPlaylist() {
-        guard let index = selectedEffectPlaylistIndex else { return }
+        guard let selectedEffectPlaylistID else { return }
+        deleteEffectPlaylist(selectedEffectPlaylistID)
+    }
+
+    func deleteEffectPlaylist(_ playlistID: UUID) {
+        guard let index = effectPlaylists.firstIndex(where: { $0.id == playlistID }) else { return }
 
         let deletedPlaylist = effectPlaylists[index]
+        let wasSelected = selectedEffectPlaylistID == deletedPlaylist.id
         let deletedIDs = Set(deletedPlaylist.effects.map { $0.id })
 
         playbackHistory.removeAll { deletedIDs.contains($0) }
@@ -364,15 +398,51 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             let playlist = EffectPlaylist(name: L10n.tr("playlist.sfx_master.default"))
             effectPlaylists = [playlist]
             selectedEffectPlaylistID = playlist.id
-            activePlaylistEditorTarget = .effect(playlist.id)
-        } else {
-            selectedEffectPlaylistID = effectPlaylists.first?.id
-            if let id = selectedEffectPlaylistID {
-                activePlaylistEditorTarget = .effect(id)
-            }
+        } else if wasSelected {
+            let nextIndex = min(index, effectPlaylists.count - 1)
+            selectedEffectPlaylistID = effectPlaylists[nextIndex].id
         }
 
         saveState()
+    }
+
+    func moveEffectPlaylist(_ draggedID: UUID, to targetID: UUID) {
+        guard draggedID != targetID,
+              let sourceIndex = effectPlaylists.firstIndex(where: { $0.id == draggedID }),
+              let targetIndex = effectPlaylists.firstIndex(where: { $0.id == targetID }) else {
+            return
+        }
+
+        let playlist = effectPlaylists.remove(at: sourceIndex)
+        let destinationIndex = min(targetIndex, effectPlaylists.count)
+        effectPlaylists.insert(playlist, at: destinationIndex)
+        saveState()
+    }
+
+    func refreshLocalizedDefaultPlaylistNames() {
+        var didChange = false
+        let knownMusicDefaults = L10n.translations(for: "playlist.main.default")
+        let knownEffectDefaults = L10n.translations(for: "playlist.sfx_master.default")
+        let currentMusicDefault = L10n.tr("playlist.main.default")
+        let currentEffectDefault = L10n.tr("playlist.sfx_master.default")
+
+        for index in musicPlaylists.indices where knownMusicDefaults.contains(musicPlaylists[index].name) {
+            if musicPlaylists[index].name != currentMusicDefault {
+                musicPlaylists[index].name = currentMusicDefault
+                didChange = true
+            }
+        }
+
+        for index in effectPlaylists.indices where knownEffectDefaults.contains(effectPlaylists[index].name) {
+            if effectPlaylists[index].name != currentEffectDefault {
+                effectPlaylists[index].name = currentEffectDefault
+                didChange = true
+            }
+        }
+
+        if didChange {
+            saveState()
+        }
     }
 
     // MARK: - Импорт
@@ -445,19 +515,18 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         if panel.runModal() == .OK, let folderURL = panel.url {
             let role: TrackRole = target == .music ? .music : .effect
             let supportedExtensions = self.supportedExtensions
-            Task.detached(priority: .userInitiated) { [weak self] in
-                guard let self else { return }
-                // Security scope должен жить ровно столько, сколько длится фоновый обход папки.
-                let didStartAccessing = folderURL.startAccessingSecurityScopedResource()
-                defer {
-                    if didStartAccessing {
-                        folderURL.stopAccessingSecurityScopedResource()
+            Task { @MainActor [weak self] in
+                let urls = await Task.detached(priority: .userInitiated) {
+                    // Доступ к папке должен жить ровно столько, сколько длится фоновый обход.
+                    let didStartAccessing = folderURL.startAccessingSecurityScopedResource()
+                    defer {
+                        if didStartAccessing {
+                            folderURL.stopAccessingSecurityScopedResource()
+                        }
                     }
-                }
-                let urls = Self.scanTrackURLs(in: folderURL, supportedExtensions: supportedExtensions)
-                await MainActor.run {
-                    self.importTrackURLs(urls, role: role, target: target)
-                }
+                    return Self.scanTrackURLs(in: folderURL, supportedExtensions: supportedExtensions)
+                }.value
+                self?.importTrackURLs(urls, role: role, target: target)
             }
         }
     }
@@ -481,36 +550,6 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             appendUniqueMusicTracks(newTracks)
         case .effect:
             appendUniqueEffectTracks(newTracks)
-        }
-    }
-
-    func setActiveEditorTargetMusic(_ playlistID: UUID) {
-        selectedMusicPlaylistID = playlistID
-        activePlaylistEditorTarget = .music(playlistID)
-    }
-
-    func setActiveEditorTargetEffect(_ playlistID: UUID) {
-        selectedEffectPlaylistID = playlistID
-        activePlaylistEditorTarget = .effect(playlistID)
-    }
-
-    func renameActivePlaylist(to newName: String) {
-        guard let target = activePlaylistEditorTarget else { return }
-        switch target {
-        case .music:
-            renameSelectedMusicPlaylist(to: newName)
-        case .effect:
-            renameSelectedEffectPlaylist(to: newName)
-        }
-    }
-
-    func deleteActivePlaylist() {
-        guard let target = activePlaylistEditorTarget else { return }
-        switch target {
-        case .music:
-            deleteSelectedMusicPlaylist()
-        case .effect:
-            deleteSelectedEffectPlaylist()
         }
     }
 
@@ -541,6 +580,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
         if removedCurrent {
             stop()
+            playbackMusicPlaylistID = selectedMusicPlaylistID
             currentTrackID = musicPlaylists[playlistIndex].tracks.first?.id
         }
         saveState()
@@ -566,7 +606,18 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     // MARK: - Управление воспроизведением музыки
 
     func playMusicTrack(_ track: Track) {
+        playbackMusicPlaylistID = selectedMusicPlaylistID
         switchToTrack(track.id, addCurrentTrackToHistory: true)
+    }
+
+    func playMusicTrack(playlistID: UUID, trackID: UUID) -> Bool {
+        guard let playlistIndex = musicPlaylists.firstIndex(where: { $0.id == playlistID }),
+              musicPlaylists[playlistIndex].tracks.contains(where: { $0.id == trackID }) else {
+            return false
+        }
+        playbackMusicPlaylistID = playlistID
+        switchToTrack(trackID, addCurrentTrackToHistory: true)
+        return true
     }
 
     func playCurrentTrack() {
@@ -606,6 +657,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             isPlaying = true
         } else {
             if currentTrack == nil, let first = selectedMusicPlaylist?.tracks.first {
+                playbackMusicPlaylistID = selectedMusicPlaylistID
                 currentTrackID = first.id
             }
             playCurrentTrack()
@@ -625,13 +677,19 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
         let targetVolume = Float(effectiveMusicVolume())
         musicPlayer.setVolume(0, fadeDuration: 1.2)
+        let expectedPlayerID = ObjectIdentifier(musicPlayer)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { [weak self, weak musicPlayer] in
-            guard let self, let musicPlayer, self.musicPlayer === musicPlayer else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_250_000_000)
+            guard let self,
+                  let musicPlayer = self.musicPlayer,
+                  ObjectIdentifier(musicPlayer) == expectedPlayerID else {
+                return
+            }
             musicPlayer.pause()
             musicPlayer.volume = targetVolume
-            self.currentTime = musicPlayer.currentTime
-            self.isPlaying = false
+            currentTime = musicPlayer.currentTime
+            isPlaying = false
         }
     }
 
@@ -651,7 +709,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     func nextTrack() {
-        guard let playlist = selectedMusicPlaylist, !playlist.tracks.isEmpty else { return }
+        guard let playlist = playbackMusicPlaylist, !playlist.tracks.isEmpty else { return }
 
         if isShuffleEnabled {
             playRandomTrack(from: playlist)
@@ -686,7 +744,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     func previousTrack() {
-        guard let playlist = selectedMusicPlaylist, !playlist.tracks.isEmpty else { return }
+        guard let playlist = playbackMusicPlaylist, !playlist.tracks.isEmpty else { return }
 
         if let musicPlayer = musicPlayer, musicPlayer.currentTime > 3 {
             musicPlayer.currentTime = 0
@@ -747,6 +805,15 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         }
     }
 
+    func playEffect(playlistID: UUID, trackID: UUID) -> Bool {
+        guard let playlistIndex = effectPlaylists.firstIndex(where: { $0.id == playlistID }),
+              let track = effectPlaylists[playlistIndex].effects.first(where: { $0.id == trackID }) else {
+            return false
+        }
+        playEffect(track)
+        return true
+    }
+
     func playEffectAtIndex(_ index: Int) {
         guard index >= 0, index < effectTracks.count else { return }
         playEffect(effectTracks[index])
@@ -754,6 +821,14 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     func stopEffects() {
         stopAllEffects()
+    }
+
+    func adjustMusicVolume(by delta: Double) {
+        volume = clampedUnitVolume(volume + delta)
+    }
+
+    func adjustEffectsVolume(by delta: Double) {
+        effectsVolume = clampedUnitVolume(effectsVolume + delta)
     }
 
     // MARK: - AVAudioPlayerDelegate
@@ -835,6 +910,7 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
         )
 
         if currentTrackID == nil, let first = musicPlaylists[playlistIndex].tracks.first {
+            playbackMusicPlaylistID = selectedMusicPlaylistID
             currentTrackID = first.id
         }
     }
@@ -1064,17 +1140,24 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            guard let musicPlayer = self.musicPlayer else {
-                self.currentTime = 0
-                self.duration = 0
-                return
-            }
+        timer = Timer.scheduledTimer(
+            timeInterval: 0.25,
+            target: self,
+            selector: #selector(updatePlaybackTimer),
+            userInfo: nil,
+            repeats: true
+        )
+    }
 
-            self.currentTime = musicPlayer.currentTime
-            self.duration = musicPlayer.duration
+    @objc private func updatePlaybackTimer() {
+        guard let musicPlayer else {
+            currentTime = 0
+            duration = 0
+            return
         }
+
+        currentTime = musicPlayer.currentTime
+        duration = musicPlayer.duration
     }
 
     private func stopAllEffects() {
@@ -1246,15 +1329,8 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
             didChange = true
         }
 
-        if activePlaylistEditorTarget == nil {
-            if let selectedMusicPlaylistID {
-                activePlaylistEditorTarget = .music(selectedMusicPlaylistID)
-            } else if let selectedEffectPlaylistID {
-                activePlaylistEditorTarget = .effect(selectedEffectPlaylistID)
-            }
-        }
-
         if currentTrackID == nil {
+            playbackMusicPlaylistID = selectedMusicPlaylistID
             currentTrackID = selectedMusicPlaylist?.tracks.first?.id
         }
 
@@ -1331,12 +1407,6 @@ final class PlayerViewModel: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
         isSentryTelemetryEnabled = defaults.bool(forKey: PlayerDefaultsKeys.sentryEnabled)
         sentryDSN = defaults.string(forKey: PlayerDefaultsKeys.sentryDSN) ?? ""
-
-        if let selectedMusicPlaylistID {
-            activePlaylistEditorTarget = .music(selectedMusicPlaylistID)
-        } else if let selectedEffectPlaylistID {
-            activePlaylistEditorTarget = .effect(selectedEffectPlaylistID)
-        }
     }
 
     private func clampedUnitVolume(_ value: Double) -> Double {
