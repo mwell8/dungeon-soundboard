@@ -85,6 +85,10 @@ Dungeon Soundboard is free to use. You can download it, run it for your own game
 
 Contributions are welcome: bug reports, feature ideas, translations, documentation fixes, and pull requests all help make the app better.
 
+If you enjoy the app and want to support future experiments, you can send a voluntary donation:
+
+- [Support MWell on Boosty](https://boosty.to/mwell/donate)
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
@@ -164,3 +168,7 @@ xcodebuild -project "Dungeon Soundboard.xcodeproj" \
 Dungeon Soundboard можно свободно скачивать, использовать для своих игр, отправлять другим ведущим и улучшать под лицензией MIT.
 
 Если вы хотите помочь проекту, можно создавать issue с багами и идеями, предлагать улучшения интерфейса, править документацию, добавлять переводы или отправлять pull request.
+
+Если приложение оказалось полезным и вы хотите поддержать будущие эксперименты, можно отправить добровольный донат:
+
+- [Поддержать MWell на Boosty](https://boosty.to/mwell/donate)
