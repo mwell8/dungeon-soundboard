@@ -79,6 +79,12 @@ Users should do one of the following:
 - Audio files are accessed via macOS security-scoped bookmarks. If access is revoked, re-add files/folders.
 - The app is optimized for local file playback (no streaming providers).
 
+## Free Release and Contributions
+
+Dungeon Soundboard is free to use. You can download it, run it for your own games, share it with other tabletop players, and improve the project under the MIT license.
+
+Contributions are welcome: bug reports, feature ideas, translations, documentation fixes, and pull requests all help make the app better.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
@@ -152,3 +158,9 @@ xcodebuild -project "Dungeon Soundboard.xcodeproj" \
 - Приложение работает с локальными аудиофайлами, стриминговые сервисы не поддерживаются.
 - Доступ к файлам хранится через security-scoped bookmarks macOS. Если доступ к файлам был отозван или файлы перемещены, их нужно добавить заново.
 - Хоткеи работают только когда активно окно приложения. Это не глобальные системные хоткеи macOS.
+
+### Бесплатный релиз и вклад в проект
+
+Dungeon Soundboard можно свободно скачивать, использовать для своих игр, отправлять другим ведущим и улучшать под лицензией MIT.
+
+Если вы хотите помочь проекту, можно создавать issue с багами и идеями, предлагать улучшения интерфейса, править документацию, добавлять переводы или отправлять pull request.
