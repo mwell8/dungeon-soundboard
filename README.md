@@ -74,29 +74,6 @@ Users should do one of the following:
 1. Right-click app -> `Open` -> `Open` (recommended).
 2. Or `System Settings` -> `Privacy & Security` -> `Open Anyway` after first blocked launch.
 
-## Optional: Signed + Notarized Release (Paid Apple Developer)
-
-1. Install a valid **Developer ID Application** certificate into your login keychain.
-2. Configure one-time notarization credentials:
-
-```bash
-xcrun notarytool store-credentials "AC_NOTARY" \
-  --apple-id "YOUR_APPLE_ID" \
-  --team-id "YOUR_TEAM_ID" \
-  --password "YOUR_APP_SPECIFIC_PASSWORD"
-```
-
-3. Run release pipeline from project root:
-
-```bash
-DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)" \
-NOTARY_PROFILE="AC_NOTARY" \
-./scripts/release-macos.sh
-```
-
-Output artifacts will be placed in `dist/`, including notarized zip:
-`dist/Dungeon-Soundboard-macOS-notarized.zip`.
-
 ## Known Limitations
 
 - Audio files are accessed via macOS security-scoped bookmarks. If access is revoked, re-add files/folders.
