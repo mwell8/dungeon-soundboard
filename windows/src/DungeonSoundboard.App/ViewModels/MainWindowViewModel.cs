@@ -98,13 +98,23 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         MoveMusicTrackDownCommand = new RelayCommand(() => MoveSelectedTrack(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, 1, nameof(MusicTracks)), () => CanMove(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, 1));
         MoveEffectTrackUpCommand = new RelayCommand(() => MoveSelectedTrack(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, -1, nameof(EffectTracks)), () => CanMove(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, -1));
         MoveEffectTrackDownCommand = new RelayCommand(() => MoveSelectedTrack(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, 1, nameof(EffectTracks)), () => CanMove(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, 1));
+        DeleteMusicTrackItemCommand = new RelayCommand<Track>(DeleteMusicTrack);
+        DeleteEffectTrackItemCommand = new RelayCommand<Track>(DeleteEffectTrack);
+        MoveMusicTrackItemUpCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedMusicPlaylist?.Tracks, track, -1, nameof(MusicTracks)));
+        MoveMusicTrackItemDownCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedMusicPlaylist?.Tracks, track, 1, nameof(MusicTracks)));
+        MoveEffectTrackItemUpCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedEffectPlaylist?.Effects, track, -1, nameof(EffectTracks)));
+        MoveEffectTrackItemDownCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedEffectPlaylist?.Effects, track, 1, nameof(EffectTracks)));
         BindSelectedMusicCommand = new RelayCommand(BeginBindSelectedMusic, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
         BindSelectedEffectCommand = new RelayCommand(BeginBindSelectedEffect, () => SelectedEffectPlaylist is not null && SelectedEffectTrack is not null);
+        BindMusicTrackItemCommand = new RelayCommand<Track>(BeginBindMusicTrack);
+        BindEffectTrackItemCommand = new RelayCommand<Track>(BeginBindEffectTrack);
         BindSystemHotkeyCommand = new RelayCommand<HotkeyAction>(BeginBindSystemHotkey);
         ClearSystemHotkeyCommand = new RelayCommand<HotkeyAction>(ClearSystemHotkey);
         CancelHotkeyCaptureCommand = new RelayCommand(CancelHotkeyCapture, () => CaptureAction is not null);
         ClearSelectedMusicBindingCommand = new RelayCommand(ClearSelectedMusicBinding, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
         ClearSelectedEffectBindingCommand = new RelayCommand(ClearSelectedEffectBinding, () => SelectedEffectPlaylist is not null && SelectedEffectTrack is not null);
+        ClearMusicTrackItemBindingCommand = new RelayCommand<Track>(ClearMusicTrackBinding);
+        ClearEffectTrackItemBindingCommand = new RelayCommand<Track>(ClearEffectTrackBinding);
         ChooseBackgroundImageCommand = new AsyncRelayCommand(ChooseBackgroundImageAsync);
     }
 
@@ -141,13 +151,23 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand MoveMusicTrackDownCommand { get; }
     public IRelayCommand MoveEffectTrackUpCommand { get; }
     public IRelayCommand MoveEffectTrackDownCommand { get; }
+    public IRelayCommand<Track> DeleteMusicTrackItemCommand { get; }
+    public IRelayCommand<Track> DeleteEffectTrackItemCommand { get; }
+    public IRelayCommand<Track> MoveMusicTrackItemUpCommand { get; }
+    public IRelayCommand<Track> MoveMusicTrackItemDownCommand { get; }
+    public IRelayCommand<Track> MoveEffectTrackItemUpCommand { get; }
+    public IRelayCommand<Track> MoveEffectTrackItemDownCommand { get; }
     public IRelayCommand BindSelectedMusicCommand { get; }
     public IRelayCommand BindSelectedEffectCommand { get; }
+    public IRelayCommand<Track> BindMusicTrackItemCommand { get; }
+    public IRelayCommand<Track> BindEffectTrackItemCommand { get; }
     public IRelayCommand<HotkeyAction> BindSystemHotkeyCommand { get; }
     public IRelayCommand<HotkeyAction> ClearSystemHotkeyCommand { get; }
     public IRelayCommand CancelHotkeyCaptureCommand { get; }
     public IRelayCommand ClearSelectedMusicBindingCommand { get; }
     public IRelayCommand ClearSelectedEffectBindingCommand { get; }
+    public IRelayCommand<Track> ClearMusicTrackItemBindingCommand { get; }
+    public IRelayCommand<Track> ClearEffectTrackItemBindingCommand { get; }
     public IAsyncRelayCommand ChooseBackgroundImageCommand { get; }
 
     public Playlist? SelectedMusicPlaylist
@@ -774,12 +794,27 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void DeleteSelectedMusicTrack()
     {
-        if (SelectedMusicPlaylist is null || SelectedMusicTrack is null)
+        DeleteMusicTrack(SelectedMusicTrack);
+    }
+
+    private void DeleteSelectedEffectTrack()
+    {
+        DeleteEffectTrack(SelectedEffectTrack);
+    }
+
+    private void DeleteMusicTrack(Track? track)
+    {
+        if (SelectedMusicPlaylist is null || track is null)
         {
             return;
         }
 
-        var removed = SelectedMusicTrack;
+        var removed = SelectedMusicPlaylist.Tracks.FirstOrDefault(candidate => candidate.Id == track.Id);
+        if (removed is null)
+        {
+            return;
+        }
+
         SelectedMusicPlaylist.Tracks.Remove(removed);
         if (CurrentTrack?.Id == removed.Id)
         {
@@ -787,22 +822,38 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             CurrentTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
         }
 
-        SelectedMusicTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
+        if (SelectedMusicTrack?.Id == removed.Id)
+        {
+            SelectedMusicTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
+        }
+
         NotifyMusicTracksChanged();
         Save();
+        NotifyCommandStates();
     }
 
-    private void DeleteSelectedEffectTrack()
+    private void DeleteEffectTrack(Track? track)
     {
-        if (SelectedEffectPlaylist is null || SelectedEffectTrack is null)
+        if (SelectedEffectPlaylist is null || track is null)
         {
             return;
         }
 
-        SelectedEffectPlaylist.Effects.Remove(SelectedEffectTrack);
-        SelectedEffectTrack = SelectedEffectPlaylist.Effects.FirstOrDefault();
+        var removed = SelectedEffectPlaylist.Effects.FirstOrDefault(candidate => candidate.Id == track.Id);
+        if (removed is null)
+        {
+            return;
+        }
+
+        SelectedEffectPlaylist.Effects.Remove(removed);
+        if (SelectedEffectTrack?.Id == removed.Id)
+        {
+            SelectedEffectTrack = SelectedEffectPlaylist.Effects.FirstOrDefault();
+        }
+
         NotifyEffectTracksChanged();
         Save();
+        NotifyCommandStates();
     }
 
     private void MoveSelectedPlaylist<T>(ObservableCollection<T> collection, T? selected, int delta)
@@ -826,6 +877,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     private void MoveSelectedTrack(List<Track>? tracks, Track? selected, int delta, string propertyName)
+    {
+        MoveTrackItem(tracks, selected, delta, propertyName);
+    }
+
+    private void MoveTrackItem(List<Track>? tracks, Track? selected, int delta, string propertyName)
     {
         if (tracks is null || selected is null)
         {
@@ -1014,22 +1070,32 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void BeginBindSelectedMusic()
     {
-        if (SelectedMusicPlaylist is null || SelectedMusicTrack is null)
-        {
-            return;
-        }
-
-        CaptureAction = HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, SelectedMusicTrack.Id);
+        BeginBindMusicTrack(SelectedMusicTrack);
     }
 
     private void BeginBindSelectedEffect()
     {
-        if (SelectedEffectPlaylist is null || SelectedEffectTrack is null)
+        BeginBindEffectTrack(SelectedEffectTrack);
+    }
+
+    private void BeginBindMusicTrack(Track? track)
+    {
+        if (SelectedMusicPlaylist is null || track is null || !SelectedMusicPlaylist.Tracks.Any(candidate => candidate.Id == track.Id))
         {
             return;
         }
 
-        CaptureAction = HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id);
+        CaptureAction = HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, track.Id);
+    }
+
+    private void BeginBindEffectTrack(Track? track)
+    {
+        if (SelectedEffectPlaylist is null || track is null || !SelectedEffectPlaylist.Effects.Any(candidate => candidate.Id == track.Id))
+        {
+            return;
+        }
+
+        CaptureAction = HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, track.Id);
     }
 
     private void BeginBindSystemHotkey(HotkeyAction? action)
@@ -1059,24 +1125,34 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void ClearSelectedMusicBinding()
     {
-        if (SelectedMusicPlaylist is null || SelectedMusicTrack is null)
-        {
-            return;
-        }
-
-        _state.Hotkeys.Clear(HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, SelectedMusicTrack.Id));
-        NotifyHotkeysChanged();
-        Save();
+        ClearMusicTrackBinding(SelectedMusicTrack);
     }
 
     private void ClearSelectedEffectBinding()
     {
-        if (SelectedEffectPlaylist is null || SelectedEffectTrack is null)
+        ClearEffectTrackBinding(SelectedEffectTrack);
+    }
+
+    private void ClearMusicTrackBinding(Track? track)
+    {
+        if (SelectedMusicPlaylist is null || track is null || !SelectedMusicPlaylist.Tracks.Any(candidate => candidate.Id == track.Id))
         {
             return;
         }
 
-        _state.Hotkeys.Clear(HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id));
+        _state.Hotkeys.Clear(HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, track.Id));
+        NotifyHotkeysChanged();
+        Save();
+    }
+
+    private void ClearEffectTrackBinding(Track? track)
+    {
+        if (SelectedEffectPlaylist is null || track is null || !SelectedEffectPlaylist.Effects.Any(candidate => candidate.Id == track.Id))
+        {
+            return;
+        }
+
+        _state.Hotkeys.Clear(HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, track.Id));
         NotifyHotkeysChanged();
         Save();
     }

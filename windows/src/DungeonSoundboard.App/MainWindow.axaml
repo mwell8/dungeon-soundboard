@@ -198,6 +198,18 @@
               <ListBox.ItemTemplate>
                 <DataTemplate>
                   <Border Classes="trackTile" Width="268" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <Border.ContextMenu>
+                      <ContextMenu DataContext="{Binding}">
+                        <MenuItem Header="Play" Tag="{Binding}" Click="OnPlayMusicTrackMenuClick" />
+                        <MenuItem Header="Bind Hotkey" Tag="{Binding}" Click="OnBindMusicTrackMenuClick" />
+                        <MenuItem Header="Clear Hotkey" Tag="{Binding}" Click="OnClearMusicTrackHotkeyMenuClick" />
+                        <Separator />
+                        <MenuItem Header="Move Up" Tag="{Binding}" Click="OnMoveMusicTrackUpMenuClick" />
+                        <MenuItem Header="Move Down" Tag="{Binding}" Click="OnMoveMusicTrackDownMenuClick" />
+                        <Separator />
+                        <MenuItem Header="Delete" Tag="{Binding}" Click="OnDeleteMusicTrackMenuClick" />
+                      </ContextMenu>
+                    </Border.ContextMenu>
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                       <Border Grid.Column="1" Classes="badge" Margin="10,0,0,0">
@@ -265,6 +277,18 @@
               <ListBox.ItemTemplate>
                 <DataTemplate>
                   <Border Classes="trackTile" Width="268" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <Border.ContextMenu>
+                      <ContextMenu DataContext="{Binding}">
+                        <MenuItem Header="Play SFX" Tag="{Binding}" Click="OnPlayEffectTrackMenuClick" />
+                        <MenuItem Header="Bind Hotkey" Tag="{Binding}" Click="OnBindEffectTrackMenuClick" />
+                        <MenuItem Header="Clear Hotkey" Tag="{Binding}" Click="OnClearEffectTrackHotkeyMenuClick" />
+                        <Separator />
+                        <MenuItem Header="Move Up" Tag="{Binding}" Click="OnMoveEffectTrackUpMenuClick" />
+                        <MenuItem Header="Move Down" Tag="{Binding}" Click="OnMoveEffectTrackDownMenuClick" />
+                        <Separator />
+                        <MenuItem Header="Delete" Tag="{Binding}" Click="OnDeleteEffectTrackMenuClick" />
+                      </ContextMenu>
+                    </Border.ContextMenu>
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                       <Border Grid.Column="1" Classes="badge" Margin="10,0,0,0">

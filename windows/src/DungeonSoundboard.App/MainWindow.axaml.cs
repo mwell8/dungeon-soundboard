@@ -105,6 +105,84 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnPlayMusicTrackMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.PlayMusicTrackCommand.Execute(track));
+    }
+
+    private void OnBindMusicTrackMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.BindMusicTrackItemCommand.Execute(track));
+    }
+
+    private void OnClearMusicTrackHotkeyMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.ClearMusicTrackItemBindingCommand.Execute(track));
+    }
+
+    private void OnMoveMusicTrackUpMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.MoveMusicTrackItemUpCommand.Execute(track));
+    }
+
+    private void OnMoveMusicTrackDownMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.MoveMusicTrackItemDownCommand.Execute(track));
+    }
+
+    private void OnDeleteMusicTrackMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.DeleteMusicTrackItemCommand.Execute(track));
+    }
+
+    private void OnPlayEffectTrackMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.PlayEffectCommand.Execute(track));
+    }
+
+    private void OnBindEffectTrackMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.BindEffectTrackItemCommand.Execute(track));
+    }
+
+    private void OnClearEffectTrackHotkeyMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.ClearEffectTrackItemBindingCommand.Execute(track));
+    }
+
+    private void OnMoveEffectTrackUpMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.MoveEffectTrackItemUpCommand.Execute(track));
+    }
+
+    private void OnMoveEffectTrackDownMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.MoveEffectTrackItemDownCommand.Execute(track));
+    }
+
+    private void OnDeleteEffectTrackMenuClick(object? sender, RoutedEventArgs e)
+    {
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.DeleteEffectTrackItemCommand.Execute(track));
+    }
+
+    private void ExecuteTrackCommand(object? sender, Action<MainWindowViewModel, Track> execute)
+    {
+        if (DataContext is MainWindowViewModel viewModel && TrackFromSender(sender) is { } track)
+        {
+            execute(viewModel, track);
+        }
+    }
+
+    private static Track? TrackFromSender(object? sender)
+    {
+        if (sender is not Control control)
+        {
+            return null;
+        }
+
+        return control.Tag as Track ?? control.DataContext as Track;
+    }
+
     private static bool HasFiles(DragEventArgs e)
     {
         return e.DataTransfer.Contains(DataFormat.File);
