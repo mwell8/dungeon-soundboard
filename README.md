@@ -12,8 +12,10 @@ Desktop audio app for tabletop sessions: play background music continuously and 
 - Drag-and-drop import from Finder to Music/SFX zones.
 - Multi-select track management with `Cmd+Click` and `Delete`.
 - Custom app hotkeys for playback, SFX stop, volume control, tracks, and effects.
+- Per-track and per-effect volume from `0%` to `200%`.
 - Theme presets, custom visual themes, and background image support.
 - Playlist rename/delete menus and drag-to-reorder playlist sorting.
+- Track/effect rename menus and drag-to-reorder sorting inside playlists.
 
 ## Requirements
 
@@ -63,7 +65,7 @@ Optional zip for GitHub Releases:
 ```bash
 ditto -c -k --sequesterRsrc --keepParent \
   "Release/Dungeon Soundboard.app" \
-  "Release/Dungeon-Soundboard-1.0.0-macOS.zip"
+  "Release/Dungeon-Soundboard-1.1.0-macOS.zip"
 ```
 
 ## First Launch On User Mac (Unsigned App)
@@ -99,6 +101,8 @@ MIT — see [LICENSE](./LICENSE).
 
 **Dungeon Soundboard** — macOS-приложение для ведущих настольных игр. Оно помогает держать фоновую музыку включенной и быстро запускать звуковые эффекты поверх нее, не сбивая текущий музыкальный трек.
 
+Приложение сделано как отдельный пульт звука для мастера: без аккаунтов, браузера, сервера и настройки виртуального стола. Оно подходит для офлайн-сессий по D&D и другим НРИ, когда нужно быстро включать атмосферу, бой, город, таверну, тревогу, окружение или короткие эффекты.
+
 ### Возможности
 
 - Отдельные плейлисты для **музыки** и **SFX**.
@@ -106,6 +110,9 @@ MIT — see [LICENSE](./LICENSE).
 - Настраиваемое приглушение музыки во время SFX.
 - Drag-and-drop импорт аудиофайлов из Finder.
 - Создание, переименование, удаление и сортировка плейлистов мышкой.
+- Сортировка треков и эффектов внутри плейлиста через отдельную drag-иконку.
+- Переименование треков и эффектов внутри приложения без переименования файла на диске.
+- Индивидуальная громкость каждого трека и эффекта от `0%` до `200%`.
 - Мультивыбор треков через `Cmd+Click`.
 - Настраиваемые хоткеи для музыки, эффектов, громкости и отдельных треков.
 - `Delete` по умолчанию останавливает только SFX.
@@ -116,10 +123,16 @@ MIT — see [LICENSE](./LICENSE).
 - Переключение языка интерфейса: английский / русский.
 - Сохранение плейлистов, настроек, темы и хоткеев через `UserDefaults`.
 
+### Что сохраняется
+
+Плейлисты, названия треков внутри приложения, порядок элементов, индивидуальная громкость, темы, пресеты, язык и хоткеи сохраняются локально через `UserDefaults`. Замена приложения на новую версию не должна удалять эти данные.
+
+Аудиофайлы остаются там, где вы их храните. Dungeon Soundboard не копирует музыку в свой проект и не переименовывает исходные файлы.
+
 ### Скачать и запустить
 
 1. Откройте страницу [Releases](https://github.com/mwell8/dungeon-soundboard/releases).
-2. Скачайте `Dungeon-Soundboard-1.0.0-macOS.zip`.
+2. Скачайте `Dungeon-Soundboard-1.1.0-macOS.zip`.
 3. Распакуйте архив.
 4. Перетащите `Dungeon Soundboard.app` в `Applications` или запустите из распакованной папки.
 

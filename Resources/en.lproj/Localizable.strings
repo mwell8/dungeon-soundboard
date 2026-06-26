@@ -74,7 +74,7 @@
 "settings.group.system" = "System";
 "settings.language.title" = "Language";
 "settings.about.title" = "About";
-"settings.about.version" = "Version 1.0.0";
+"settings.about.version" = "Version 1.1.0";
 "settings.playback.title" = "Playback";
 "settings.telemetry.title" = "Telemetry";
 "hotkeys.system.title" = "System Hotkeys";
@@ -90,7 +90,6 @@
 "hotkeys.conflict.title" = "Hotkey Already Used";
 "hotkeys.conflict.message" = "%@ is already assigned to \"%@\". Replace the old assignment?";
 "hotkeys.conflict.replace" = "Replace";
-"hotkeys.track_menu" = "Hotkey Settings";
 "hotkeys.action.stop_all" = "Stop All Sounds";
 "hotkeys.action.stop_effects" = "Stop SFX";
 "hotkeys.action.play_pause" = "Pause / Play Music";
@@ -99,6 +98,14 @@
 "hotkeys.action.effects_volume_up" = "SFX Volume +";
 "hotkeys.action.effects_volume_down" = "SFX Volume -";
 "hotkeys.action.missing_track" = "Deleted Track";
+"track.volume" = "Volume";
+"track.volume.reset" = "Reset to 100%";
+"track.drag_handle" = "Drag to reorder";
+"track.actions" = "Sound actions";
+"track.rename.title" = "Rename Track";
+"track.name" = "Track name";
+"effect.rename.title" = "Rename Effect";
+"effect.name" = "Effect name";
 "theme.presets.title" = "Theme Presets";
 "theme.presets.builtin" = "Built-in Preset";
 "theme.presets.custom_name" = "Custom preset name";

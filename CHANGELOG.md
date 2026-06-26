@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-06-26
+
+### Added
+- Per-track and per-effect volume controls from `0%` to `200%`.
+- Track and effect reorder handles for sorting items inside playlists.
+- In-app track and effect renaming without touching the original audio files.
+- Track/effect action menus with rename, volume, and hotkey controls.
+- Additional tests for track volume, title normalization, and item reordering.
+
+### Changed
+- SFX cards no longer show the extra inline play icon; sounds still start by clicking the card.
+- README now has fuller Russian documentation and updated `1.1.0` download instructions.
+- App version is now `1.1.0`.
+
 ## [1.0.0] - 2026-06-22
 
 ### Added

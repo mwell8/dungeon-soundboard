@@ -74,7 +74,7 @@
 "settings.group.system" = "Система";
 "settings.language.title" = "Язык";
 "settings.about.title" = "О приложении";
-"settings.about.version" = "Версия 1.0.0";
+"settings.about.version" = "Версия 1.1.0";
 "settings.playback.title" = "Воспроизведение";
 "settings.telemetry.title" = "Телеметрия";
 "hotkeys.system.title" = "Системные хоткеи";
@@ -90,7 +90,6 @@
 "hotkeys.conflict.title" = "Хоткей уже занят";
 "hotkeys.conflict.message" = "%@ уже назначен на «%@». Заменить старое назначение?";
 "hotkeys.conflict.replace" = "Заменить";
-"hotkeys.track_menu" = "Настройки хоткея";
 "hotkeys.action.stop_all" = "Остановить все звуки";
 "hotkeys.action.stop_effects" = "Остановить SFX";
 "hotkeys.action.play_pause" = "Пауза / воспроизведение музыки";
@@ -99,6 +98,14 @@
 "hotkeys.action.effects_volume_up" = "Громкость SFX +";
 "hotkeys.action.effects_volume_down" = "Громкость SFX -";
 "hotkeys.action.missing_track" = "Удаленный трек";
+"track.volume" = "Громкость";
+"track.volume.reset" = "Сбросить на 100%";
+"track.drag_handle" = "Перетащить для сортировки";
+"track.actions" = "Действия со звуком";
+"track.rename.title" = "Переименовать трек";
+"track.name" = "Название трека";
+"effect.rename.title" = "Переименовать эффект";
+"effect.name" = "Название эффекта";
 "theme.presets.title" = "Пресеты темы";
 "theme.presets.builtin" = "Готовый пресет";
 "theme.presets.custom_name" = "Название своего пресета";

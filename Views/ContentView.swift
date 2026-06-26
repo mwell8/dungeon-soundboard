@@ -30,6 +30,11 @@ struct ContentView: View {
     @State private var playlistRenameName: String = ""
     @State private var hoveredMusicTrackID: UUID?
     @State private var hoveredEffectTrackID: UUID?
+    @State private var draggingMusicTrackID: UUID?
+    @State private var draggingEffectTrackID: UUID?
+    @State private var trackRenameTarget: TrackRenameTarget?
+    @State private var trackRenameName: String = ""
+    @State private var trackVolumeTarget: TrackVolumeTarget?
     @State private var hotkeyMonitor: Any?
     @State private var selectedMusicTrackIDs: Set<UUID> = []
     @State private var selectedEffectTrackIDs: Set<UUID> = []
@@ -119,7 +124,9 @@ struct ContentView: View {
             .environmentObject(themeStore)
         }
         .sheet(item: $playlistRenameTarget) { target in
-            RenamePlaylistSheet(
+            RenameItemSheet(
+                titleKey: "playlist.rename.title",
+                placeholderKey: "sidebar.playlist_name",
                 name: $playlistRenameName,
                 onSave: {
                     renamePlaylist(target, to: playlistRenameName)
@@ -127,6 +134,20 @@ struct ContentView: View {
                 },
                 onCancel: {
                     playlistRenameTarget = nil
+                }
+            )
+        }
+        .sheet(item: $trackRenameTarget) { target in
+            RenameItemSheet(
+                titleKey: trackRenameTitleKey(for: target),
+                placeholderKey: trackRenamePlaceholderKey(for: target),
+                name: $trackRenameName,
+                onSave: {
+                    renameTrack(target, to: trackRenameName)
+                    trackRenameTarget = nil
+                },
+                onCancel: {
+                    trackRenameTarget = nil
                 }
             )
         }
@@ -215,6 +236,9 @@ struct ContentView: View {
                     }
                 )
             }
+        }
+        .popover(item: $trackVolumeTarget) { target in
+            trackVolumePopover(for: target)
         }
     }
 
@@ -759,8 +783,13 @@ struct ContentView: View {
     private func compactMusicTile(_ track: Track) -> some View {
         let isSelected = selectedMusicTrackIDs.contains(track.id)
         let action = vm.selectedMusicPlaylistID.map { HotkeyAction.playMusicTrack(playlistID: $0, trackID: track.id) }
+        let renameTarget = vm.selectedMusicPlaylistID.map { TrackRenameTarget.music(playlistID: $0, trackID: track.id) }
+        let volumeTarget = vm.selectedMusicPlaylistID.map { TrackVolumeTarget.music(playlistID: $0, trackID: track.id) }
         let hotkey = action.flatMap { hotkeyStore.hotkey(for: $0) }
         let isHovered = hoveredMusicTrackID == track.id
+        let isDragging = draggingMusicTrackID == track.id
+        let controlsOpacity = (isHovered || isDragging) ? 1.0 : 0.0
+        let controlsEnabled = isHovered || isDragging
         return HStack(spacing: 8) {
             Text(track.title)
                 .font(.callout)
@@ -778,10 +807,18 @@ struct ContentView: View {
                     .foregroundStyle(theme.accent)
             }
 
-            if let action {
-                trackActionsMenu(action)
-                    .opacity(isHovered ? 1 : 0)
-                    .allowsHitTesting(isHovered)
+            trackDragHandle
+                .opacity(controlsOpacity)
+                .allowsHitTesting(controlsEnabled)
+                .onDrag {
+                    draggingMusicTrackID = track.id
+                    return NSItemProvider(object: track.id.uuidString as NSString)
+                }
+
+            if let action, let renameTarget, let volumeTarget {
+                trackActionsMenu(action: action, renameTarget: renameTarget, volumeTarget: volumeTarget)
+                    .opacity(controlsOpacity)
+                    .allowsHitTesting(controlsEnabled)
             }
 
             Button(role: .destructive) {
@@ -830,6 +867,18 @@ struct ContentView: View {
                 vm.playMusicTrack(track)
             }
 
+            if let renameTarget {
+                Button("action.rename") {
+                    presentTrackRename(renameTarget, currentName: track.title)
+                }
+            }
+
+            if let volumeTarget {
+                Button("track.volume") {
+                    trackVolumeTarget = volumeTarget
+                }
+            }
+
             if let action {
                 Button("hotkeys.assign") {
                     hotkeyStore.beginCapture(for: action)
@@ -848,14 +897,27 @@ struct ContentView: View {
                 selectedMusicTrackIDs.subtract(ids)
             }
         }
+        .onDrop(
+            of: [UTType.plainText.identifier],
+            delegate: MusicTrackDropDelegate(
+                targetID: track.id,
+                vm: vm,
+                draggingID: $draggingMusicTrackID
+            )
+        )
         .help(track.path)
     }
 
     private func compactEffectTile(_ track: Track) -> some View {
         let isSelected = selectedEffectTrackIDs.contains(track.id)
         let action = vm.selectedEffectPlaylistID.map { HotkeyAction.playEffect(playlistID: $0, trackID: track.id) }
+        let renameTarget = vm.selectedEffectPlaylistID.map { TrackRenameTarget.effect(playlistID: $0, trackID: track.id) }
+        let volumeTarget = vm.selectedEffectPlaylistID.map { TrackVolumeTarget.effect(playlistID: $0, trackID: track.id) }
         let hotkey = action.flatMap { hotkeyStore.hotkey(for: $0) }
         let isHovered = hoveredEffectTrackID == track.id
+        let isDragging = draggingEffectTrackID == track.id
+        let controlsOpacity = (isHovered || isDragging) ? 1.0 : 0.0
+        let controlsEnabled = isHovered || isDragging
         return HStack(spacing: 8) {
             Text(track.title)
                 .font(.callout)
@@ -868,19 +930,19 @@ struct ContentView: View {
                 hotkeyBadge(hotkey)
             }
 
-            if let action {
-                trackActionsMenu(action)
-                    .opacity(isHovered ? 1 : 0)
-                    .allowsHitTesting(isHovered)
-            }
+            trackDragHandle
+                .opacity(controlsOpacity)
+                .allowsHitTesting(controlsEnabled)
+                .onDrag {
+                    draggingEffectTrackID = track.id
+                    return NSItemProvider(object: track.id.uuidString as NSString)
+                }
 
-            Button {
-                vm.playEffect(track)
-            } label: {
-                Image(systemName: "play.circle.fill")
+            if let action, let renameTarget, let volumeTarget {
+                trackActionsMenu(action: action, renameTarget: renameTarget, volumeTarget: volumeTarget)
+                    .opacity(controlsOpacity)
+                    .allowsHitTesting(controlsEnabled)
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(theme.accent)
 
             Button(role: .destructive) {
                 let ids = selectedEffectTrackIDs.contains(track.id) ? selectedEffectTrackIDs : [track.id]
@@ -923,6 +985,18 @@ struct ContentView: View {
                 vm.playEffect(track)
             }
 
+            if let renameTarget {
+                Button("action.rename") {
+                    presentTrackRename(renameTarget, currentName: track.title)
+                }
+            }
+
+            if let volumeTarget {
+                Button("track.volume") {
+                    trackVolumeTarget = volumeTarget
+                }
+            }
+
             if let action {
                 Button("hotkeys.assign") {
                     hotkeyStore.beginCapture(for: action)
@@ -941,6 +1015,14 @@ struct ContentView: View {
                 selectedEffectTrackIDs.subtract(ids)
             }
         }
+        .onDrop(
+            of: [UTType.plainText.identifier],
+            delegate: EffectTrackDropDelegate(
+                targetID: track.id,
+                vm: vm,
+                draggingID: $draggingEffectTrackID
+            )
+        )
         .help(track.path)
     }
 
@@ -954,8 +1036,24 @@ struct ContentView: View {
             .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
-    private func trackActionsMenu(_ action: HotkeyAction) -> some View {
+    private var trackDragHandle: some View {
+        Image(systemName: "line.3.horizontal")
+            .foregroundStyle(theme.textSecondary)
+            .frame(width: 18, height: 18)
+            .contentShape(Rectangle())
+            .help("track.drag_handle")
+    }
+
+    private func trackActionsMenu(action: HotkeyAction, renameTarget: TrackRenameTarget, volumeTarget: TrackVolumeTarget) -> some View {
         Menu {
+            Button("action.rename") {
+                presentTrackRename(renameTarget, currentName: trackTitle(for: renameTarget))
+            }
+
+            Button("track.volume") {
+                trackVolumeTarget = volumeTarget
+            }
+
             Button("hotkeys.assign") {
                 hotkeyStore.beginCapture(for: action)
             }
@@ -970,7 +1068,75 @@ struct ContentView: View {
                 .frame(width: 18, height: 18)
         }
         .menuStyle(.borderlessButton)
-        .help("hotkeys.track_menu")
+        .help("track.actions")
+    }
+
+    private func trackVolumePopover(for target: TrackVolumeTarget) -> some View {
+        let volume = trackVolumeBinding(for: target)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("track.volume")
+                .font(.headline)
+                .foregroundStyle(theme.textPrimary)
+
+            Text(trackVolumeTitle(for: target))
+                .font(.caption)
+                .foregroundStyle(theme.textSecondary)
+                .lineLimit(1)
+
+            Slider(value: volume, in: Track.minimumVolumeMultiplier...Track.maximumVolumeMultiplier)
+
+            HStack {
+                Text("\(Int((volume.wrappedValue * 100).rounded()))%")
+                    .foregroundStyle(theme.textSecondary)
+                Spacer()
+                Button("track.volume.reset") {
+                    volume.wrappedValue = Track.defaultVolumeMultiplier
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 270)
+        .background(theme.panel.opacity(theme.panelOpacity))
+    }
+
+    private func trackVolumeBinding(for target: TrackVolumeTarget) -> Binding<Double> {
+        Binding(
+            get: {
+                switch target {
+                case .music(let playlistID, let trackID):
+                    return vm.musicTrackVolumeMultiplier(playlistID: playlistID, trackID: trackID)
+                case .effect(let playlistID, let trackID):
+                    return vm.effectTrackVolumeMultiplier(playlistID: playlistID, trackID: trackID)
+                }
+            },
+            set: { value in
+                switch target {
+                case .music(let playlistID, let trackID):
+                    vm.setMusicTrackVolumeMultiplier(value, playlistID: playlistID, trackID: trackID)
+                case .effect(let playlistID, let trackID):
+                    vm.setEffectTrackVolumeMultiplier(value, playlistID: playlistID, trackID: trackID)
+                }
+            }
+        )
+    }
+
+    private func trackVolumeTitle(for target: TrackVolumeTarget) -> String {
+        switch target {
+        case .music(let playlistID, let trackID):
+            let playlist = vm.musicPlaylists.first { $0.id == playlistID }
+            let track = playlist?.tracks.first { $0.id == trackID }
+            if let track, let playlist {
+                return "\(track.title) · \(playlist.name)"
+            }
+            return L10n.tr("hotkeys.action.missing_track")
+        case .effect(let playlistID, let trackID):
+            let playlist = vm.effectPlaylists.first { $0.id == playlistID }
+            let track = playlist?.effects.first { $0.id == trackID }
+            if let track, let playlist {
+                return "\(track.title) · \(playlist.name)"
+            }
+            return L10n.tr("hotkeys.action.missing_track")
+        }
     }
 
     private func emptyState(title: String, icon: String) -> some View {
@@ -1211,6 +1377,55 @@ struct ContentView: View {
         }
     }
 
+    private func presentTrackRename(_ target: TrackRenameTarget, currentName: String) {
+        trackRenameName = currentName
+        trackRenameTarget = target
+    }
+
+    private func renameTrack(_ target: TrackRenameTarget, to newName: String) {
+        switch target {
+        case .music(let playlistID, let trackID):
+            vm.renameMusicTrack(playlistID: playlistID, trackID: trackID, to: newName)
+        case .effect(let playlistID, let trackID):
+            vm.renameEffectTrack(playlistID: playlistID, trackID: trackID, to: newName)
+        }
+    }
+
+    private func trackTitle(for target: TrackRenameTarget) -> String {
+        switch target {
+        case .music(let playlistID, let trackID):
+            return vm.musicPlaylists
+                .first { $0.id == playlistID }?
+                .tracks
+                .first { $0.id == trackID }?
+                .title ?? ""
+        case .effect(let playlistID, let trackID):
+            return vm.effectPlaylists
+                .first { $0.id == playlistID }?
+                .effects
+                .first { $0.id == trackID }?
+                .title ?? ""
+        }
+    }
+
+    private func trackRenameTitleKey(for target: TrackRenameTarget) -> LocalizedStringKey {
+        switch target {
+        case .music:
+            return "track.rename.title"
+        case .effect:
+            return "effect.rename.title"
+        }
+    }
+
+    private func trackRenamePlaceholderKey(for target: TrackRenameTarget) -> LocalizedStringKey {
+        switch target {
+        case .music:
+            return "track.name"
+        case .effect:
+            return "effect.name"
+        }
+    }
+
     private func deletePlaylist(_ target: PlaylistActionTarget) {
         switch target {
         case .music(let id):
@@ -1228,6 +1443,34 @@ struct ContentView: View {
             switch self {
             case .music(let id): return "music-\(id.uuidString)"
             case .effect(let id): return "effect-\(id.uuidString)"
+            }
+        }
+    }
+
+    private enum TrackRenameTarget: Identifiable, Equatable {
+        case music(playlistID: UUID, trackID: UUID)
+        case effect(playlistID: UUID, trackID: UUID)
+
+        var id: String {
+            switch self {
+            case .music(let playlistID, let trackID):
+                return "rename-music-\(playlistID.uuidString)-\(trackID.uuidString)"
+            case .effect(let playlistID, let trackID):
+                return "rename-effect-\(playlistID.uuidString)-\(trackID.uuidString)"
+            }
+        }
+    }
+
+    private enum TrackVolumeTarget: Identifiable, Equatable {
+        case music(playlistID: UUID, trackID: UUID)
+        case effect(playlistID: UUID, trackID: UUID)
+
+        var id: String {
+            switch self {
+            case .music(let playlistID, let trackID):
+                return "music-\(playlistID.uuidString)-\(trackID.uuidString)"
+            case .effect(let playlistID, let trackID):
+                return "effect-\(playlistID.uuidString)-\(trackID.uuidString)"
             }
         }
     }
@@ -1400,17 +1643,67 @@ private struct EffectPlaylistDropDelegate: DropDelegate {
     }
 }
 
-private struct RenamePlaylistSheet: View {
+private struct MusicTrackDropDelegate: DropDelegate {
+    let targetID: UUID
+    let vm: PlayerViewModel
+    @Binding var draggingID: UUID?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingID != nil
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingID else { return }
+        vm.moveMusicTrack(draggingID, to: targetID)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingID = nil
+        return true
+    }
+}
+
+private struct EffectTrackDropDelegate: DropDelegate {
+    let targetID: UUID
+    let vm: PlayerViewModel
+    @Binding var draggingID: UUID?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingID != nil
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingID else { return }
+        vm.moveEffectTrack(draggingID, to: targetID)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingID = nil
+        return true
+    }
+}
+
+private struct RenameItemSheet: View {
+    let titleKey: LocalizedStringKey
+    let placeholderKey: LocalizedStringKey
     @Binding var name: String
     let onSave: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("playlist.rename.title")
+            Text(titleKey)
                 .font(.headline)
 
-            TextField("sidebar.playlist_name", text: $name)
+            TextField(placeholderKey, text: $name)
                 .textFieldStyle(.roundedBorder)
 
             HStack {

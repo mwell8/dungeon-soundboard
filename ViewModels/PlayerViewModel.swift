@@ -174,6 +174,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     // Для наложения SFX используем несколько плееров одновременно (polyphony).
     private var effectPlayers: [ObjectIdentifier: AVAudioPlayer] = [:]
     private var effectScopedResources: [ObjectIdentifier: (url: URL, hasScope: Bool)] = [:]
+    private var effectVolumeMultipliers: [ObjectIdentifier: Double] = [:]
     private var timer: Timer?
     private var playbackHistory: [UUID] = []
     private var activeDuckCount: Int = 0
@@ -586,6 +587,50 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         saveState()
     }
 
+    func moveMusicTrack(_ draggedID: UUID, to targetID: UUID) {
+        guard let playlistIndex = selectedMusicPlaylistIndex,
+              Track.moveTrack(in: &musicPlaylists[playlistIndex].tracks, draggedID: draggedID, to: targetID) else {
+            return
+        }
+
+        saveState()
+    }
+
+    func renameMusicTrack(playlistID: UUID, trackID: UUID, to newTitle: String) {
+        guard let playlistIndex = musicPlaylists.firstIndex(where: { $0.id == playlistID }),
+              let trackIndex = musicPlaylists[playlistIndex].tracks.firstIndex(where: { $0.id == trackID }) else {
+            return
+        }
+
+        let currentTitle = musicPlaylists[playlistIndex].tracks[trackIndex].title
+        let title = Track.normalizedTitle(newTitle, fallback: currentTitle)
+        guard title != currentTitle else { return }
+
+        musicPlaylists[playlistIndex].tracks[trackIndex].title = title
+        saveState()
+    }
+
+    func musicTrackVolumeMultiplier(playlistID: UUID, trackID: UUID) -> Double {
+        guard let playlistIndex = musicPlaylists.firstIndex(where: { $0.id == playlistID }),
+              let track = musicPlaylists[playlistIndex].tracks.first(where: { $0.id == trackID }) else {
+            return Track.defaultVolumeMultiplier
+        }
+        return track.volumeMultiplier
+    }
+
+    func setMusicTrackVolumeMultiplier(_ value: Double, playlistID: UUID, trackID: UUID) {
+        guard let playlistIndex = musicPlaylists.firstIndex(where: { $0.id == playlistID }),
+              let trackIndex = musicPlaylists[playlistIndex].tracks.firstIndex(where: { $0.id == trackID }) else {
+            return
+        }
+
+        musicPlaylists[playlistIndex].tracks[trackIndex].volumeMultiplier = value
+        if currentTrackID == trackID {
+            applyMusicVolume(animated: false)
+        }
+        saveState()
+    }
+
     func removeEffectTrack(_ track: Track) {
         guard let playlistIndex = selectedEffectPlaylistIndex else { return }
         guard let trackIndex = effectPlaylists[playlistIndex].effects.firstIndex(where: { $0.id == track.id }) else {
@@ -600,6 +645,47 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         guard !trackIDs.isEmpty else { return }
         guard let playlistIndex = selectedEffectPlaylistIndex else { return }
         effectPlaylists[playlistIndex].effects.removeAll { trackIDs.contains($0.id) }
+        saveState()
+    }
+
+    func moveEffectTrack(_ draggedID: UUID, to targetID: UUID) {
+        guard let playlistIndex = selectedEffectPlaylistIndex,
+              Track.moveTrack(in: &effectPlaylists[playlistIndex].effects, draggedID: draggedID, to: targetID) else {
+            return
+        }
+
+        saveState()
+    }
+
+    func renameEffectTrack(playlistID: UUID, trackID: UUID, to newTitle: String) {
+        guard let playlistIndex = effectPlaylists.firstIndex(where: { $0.id == playlistID }),
+              let trackIndex = effectPlaylists[playlistIndex].effects.firstIndex(where: { $0.id == trackID }) else {
+            return
+        }
+
+        let currentTitle = effectPlaylists[playlistIndex].effects[trackIndex].title
+        let title = Track.normalizedTitle(newTitle, fallback: currentTitle)
+        guard title != currentTitle else { return }
+
+        effectPlaylists[playlistIndex].effects[trackIndex].title = title
+        saveState()
+    }
+
+    func effectTrackVolumeMultiplier(playlistID: UUID, trackID: UUID) -> Double {
+        guard let playlistIndex = effectPlaylists.firstIndex(where: { $0.id == playlistID }),
+              let track = effectPlaylists[playlistIndex].effects.first(where: { $0.id == trackID }) else {
+            return Track.defaultVolumeMultiplier
+        }
+        return track.volumeMultiplier
+    }
+
+    func setEffectTrackVolumeMultiplier(_ value: Double, playlistID: UUID, trackID: UUID) {
+        guard let playlistIndex = effectPlaylists.firstIndex(where: { $0.id == playlistID }),
+              let trackIndex = effectPlaylists[playlistIndex].effects.firstIndex(where: { $0.id == trackID }) else {
+            return
+        }
+
+        effectPlaylists[playlistIndex].effects[trackIndex].volumeMultiplier = value
         saveState()
     }
 
@@ -790,12 +876,13 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
             let (playbackURL, hasScope) = try resolveEffectPlaybackURL(for: track)
             let effectPlayer = try AVAudioPlayer(contentsOf: playbackURL)
             effectPlayer.delegate = self
-            effectPlayer.volume = Float(effectsVolume)
+            effectPlayer.volume = Float(track.outputVolume(masterVolume: effectsVolume))
             effectPlayer.prepareToPlay()
 
             let key = ObjectIdentifier(effectPlayer)
             effectPlayers[key] = effectPlayer
             effectScopedResources[key] = (playbackURL, hasScope)
+            effectVolumeMultipliers[key] = track.volumeMultiplier
 
             beginDuckingIfNeeded()
             effectPlayer.play()
@@ -838,6 +925,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         if effectPlayers[effectKey] != nil {
             effectPlayers[effectKey] = nil
             releaseEffectScopedResource(for: effectKey)
+            effectVolumeMultipliers[effectKey] = nil
             endDuckingIfNeeded()
             return
         }
@@ -1168,6 +1256,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         }
 
         effectPlayers.removeAll()
+        effectVolumeMultipliers.removeAll()
         activeDuckCount = 0
         applyMusicVolume(animated: true)
     }
@@ -1192,8 +1281,12 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     private func effectiveMusicVolume() -> Double {
-        guard activeDuckCount > 0 else { return volume }
-        return volume * duckingAmount
+        let activeDucking = activeDuckCount > 0 ? duckingAmount : 1
+        return Track.outputVolume(
+            masterVolume: volume,
+            trackMultiplier: currentTrack?.volumeMultiplier ?? Track.defaultVolumeMultiplier,
+            duckingMultiplier: activeDucking
+        )
     }
 
     private func applyMusicVolume(animated: Bool) {
@@ -1207,9 +1300,13 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     private func applyEffectsVolume() {
-        let targetVolume = Float(effectsVolume)
-        for player in effectPlayers.values {
-            player.volume = targetVolume
+        for (key, player) in effectPlayers {
+            player.volume = Float(
+                Track.outputVolume(
+                    masterVolume: effectsVolume,
+                    trackMultiplier: effectVolumeMultipliers[key] ?? Track.defaultVolumeMultiplier
+                )
+            )
         }
     }
 
