@@ -120,7 +120,9 @@
 
         <Button Grid.Column="2" Content="Settings" Click="OnSettingsClick" VerticalAlignment="Center" />
         <Button Grid.Column="3" Content="Background" Command="{Binding ChooseBackgroundImageCommand}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="4" Text="{Binding StatusMessage}" Classes="caption" Width="260" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="12,0,0,0" />
+        <Border Grid.Column="4" Classes="badge" Width="260" VerticalAlignment="Center" Margin="12,0,0,0">
+          <TextBlock Text="{Binding StatusMessage}" Classes="caption" Foreground="{Binding StatusMessageBrush}" TextTrimming="CharacterEllipsis" />
+        </Border>
       </Grid>
     </Border>
 

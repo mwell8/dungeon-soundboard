@@ -189,6 +189,35 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void PlaybackFailureMarksStatusAsErrorUntilNextSuccessfulPlayback()
+    {
+        var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [track]);
+        var audio = new FakeAudioService { ThrowOnPlayMusic = true };
+        using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")), audio);
+        var changedProperties = new List<string>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName ?? "");
+
+        Assert.False(viewModel.IsStatusError);
+
+        viewModel.PlayMusicTrackCommand.Execute(track);
+
+        Assert.True(viewModel.IsStatusError);
+        Assert.StartsWith("Failed to play file: Track.", viewModel.StatusMessage);
+        Assert.Contains(nameof(MainWindowViewModel.IsStatusError), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.StatusMessageBrush), changedProperties);
+
+        audio.ThrowOnPlayMusic = false;
+        changedProperties.Clear();
+        viewModel.PlayMusicTrackCommand.Execute(track);
+
+        Assert.False(viewModel.IsStatusError);
+        Assert.Empty(viewModel.StatusMessage);
+        Assert.Contains(nameof(MainWindowViewModel.IsStatusError), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.StatusMessageBrush), changedProperties);
+    }
+
+    [Fact]
     public void PlayEffectTrackTileSelectsAndStartsEffectWithoutStoppingMusic()
     {
         var music = new Track("Music", "C:\\audio\\music.mp3", TrackRole.Music);
@@ -416,6 +445,7 @@ public sealed class MainWindowViewModelTrackCommandTests
         public int PlayMusicCount { get; private set; }
         public int PauseCount { get; private set; }
         public int ResumeCount { get; private set; }
+        public bool ThrowOnPlayMusic { get; set; }
 
         public void Dispose()
         {
@@ -423,6 +453,11 @@ public sealed class MainWindowViewModelTrackCommandTests
 
         public void PlayMusic(Track track, double volume)
         {
+            if (ThrowOnPlayMusic)
+            {
+                throw new InvalidOperationException("Playback failed");
+            }
+
             IsMusicPlaying = true;
             LastMusicTrack = track;
             PlayMusicCount++;

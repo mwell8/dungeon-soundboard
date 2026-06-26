@@ -578,6 +578,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _errorMessage, value))
             {
                 OnPropertyChanged(nameof(StatusMessage));
+                OnPropertyChanged(nameof(IsStatusError));
+                OnPropertyChanged(nameof(StatusMessageBrush));
             }
         }
     }
@@ -595,6 +597,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     public string StatusMessage => ErrorMessage ?? LastImportMessage;
+
+    public bool IsStatusError => ErrorMessage is not null;
+
+    public IBrush StatusMessageBrush => IsStatusError ? DangerBrush : TextSecondaryBrush;
 
     public double MusicVolume
     {
@@ -1562,6 +1568,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         DangerBrush = ToBrush(resolved.Danger);
         TextPrimaryBrush = ToBrush(resolved.TextPrimary);
         TextSecondaryBrush = ToBrush(resolved.TextSecondary);
+        OnPropertyChanged(nameof(StatusMessageBrush));
         NotifyBackgroundChanged();
     }
 
