@@ -677,6 +677,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _captureAction, value))
             {
                 OnPropertyChanged(nameof(CaptureStatus));
+                OnPropertyChanged(nameof(IsCapturingHotkey));
                 NotifyCommandStates();
             }
         }
@@ -685,6 +686,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string CaptureStatus => CaptureAction is null
         ? "Hotkeys active: Space, Delete, +/-, Shift +/-"
         : "Press a key to assign it, or Esc to cancel";
+
+    public bool IsCapturingHotkey => CaptureAction is not null;
 
     public ThemePresetOption? SelectedThemePreset
     {

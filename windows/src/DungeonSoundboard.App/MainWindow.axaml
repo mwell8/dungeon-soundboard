@@ -444,5 +444,34 @@
         <Slider Grid.Row="1" Grid.Column="5" Width="190" Minimum="0.2" Maximum="1" Value="{Binding DuckingAmount}" Margin="0,8,0,0" />
       </Grid>
     </Border>
+
+    <Border Grid.RowSpan="3"
+            Background="#AA11151B"
+            IsVisible="{Binding IsCapturingHotkey}">
+      <Border HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Width="430"
+              MaxWidth="430"
+              Padding="22"
+              Background="{Binding PanelBrush}"
+              BorderBrush="{Binding BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Assign Hotkey"
+                     FontSize="20"
+                     FontWeight="SemiBold"
+                     HorizontalAlignment="Center" />
+          <TextBlock Classes="caption"
+                     Text="{Binding CaptureStatus}"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap" />
+          <Button Content="Cancel"
+                  Command="{Binding CancelHotkeyCaptureCommand}"
+                  HorizontalAlignment="Center"
+                  Padding="18,8" />
+        </StackPanel>
+      </Border>
+    </Border>
   </Grid>
 </Window>

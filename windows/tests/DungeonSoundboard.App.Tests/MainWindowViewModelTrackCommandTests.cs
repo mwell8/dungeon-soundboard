@@ -41,6 +41,24 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void HotkeyCaptureVisibilityFollowsCaptureState()
+    {
+        var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [track]);
+        using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")));
+
+        Assert.False(viewModel.IsCapturingHotkey);
+
+        viewModel.BindMusicTrackItemCommand.Execute(track);
+
+        Assert.True(viewModel.IsCapturingHotkey);
+
+        viewModel.CancelHotkeyCaptureCommand.Execute(null);
+
+        Assert.False(viewModel.IsCapturingHotkey);
+    }
+
+    [Fact]
     public void MoveEffectTrackItemDownReordersRequestedEffect()
     {
         var first = new Track("First", "C:\\audio\\first.wav", TrackRole.Effect);
