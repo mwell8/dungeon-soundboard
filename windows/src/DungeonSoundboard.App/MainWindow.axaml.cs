@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using DungeonSoundboard.App.Services;
 using DungeonSoundboard.App.ViewModels;
 using DungeonSoundboard.Core.Models;
@@ -43,6 +44,17 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
         }
+    }
+
+    private async void OnSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var settingsWindow = new SettingsWindow(viewModel);
+        await settingsWindow.ShowDialog(this);
     }
 
     private void OnMusicDragOver(object? sender, DragEventArgs e)

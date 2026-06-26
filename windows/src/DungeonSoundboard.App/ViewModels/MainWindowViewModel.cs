@@ -100,6 +100,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         MoveEffectTrackDownCommand = new RelayCommand(() => MoveSelectedTrack(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, 1, nameof(EffectTracks)), () => CanMove(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, 1));
         BindSelectedMusicCommand = new RelayCommand(BeginBindSelectedMusic, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
         BindSelectedEffectCommand = new RelayCommand(BeginBindSelectedEffect, () => SelectedEffectPlaylist is not null && SelectedEffectTrack is not null);
+        BindSystemHotkeyCommand = new RelayCommand<HotkeyAction>(BeginBindSystemHotkey);
+        ClearSystemHotkeyCommand = new RelayCommand<HotkeyAction>(ClearSystemHotkey);
         CancelHotkeyCaptureCommand = new RelayCommand(CancelHotkeyCapture, () => CaptureAction is not null);
         ClearSelectedMusicBindingCommand = new RelayCommand(ClearSelectedMusicBinding, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
         ClearSelectedEffectBindingCommand = new RelayCommand(ClearSelectedEffectBinding, () => SelectedEffectPlaylist is not null && SelectedEffectTrack is not null);
@@ -141,6 +143,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand MoveEffectTrackDownCommand { get; }
     public IRelayCommand BindSelectedMusicCommand { get; }
     public IRelayCommand BindSelectedEffectCommand { get; }
+    public IRelayCommand<HotkeyAction> BindSystemHotkeyCommand { get; }
+    public IRelayCommand<HotkeyAction> ClearSystemHotkeyCommand { get; }
     public IRelayCommand CancelHotkeyCaptureCommand { get; }
     public IRelayCommand ClearSelectedMusicBindingCommand { get; }
     public IRelayCommand ClearSelectedEffectBindingCommand { get; }
@@ -193,6 +197,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(SelectedMusicTrackTitle));
                 OnPropertyChanged(nameof(SelectedMusicTrackVolume));
+                OnPropertyChanged(nameof(SelectedMusicHotkeyText));
                 NotifyCommandStates();
             }
         }
@@ -207,6 +212,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(SelectedEffectTrackTitle));
                 OnPropertyChanged(nameof(SelectedEffectTrackVolume));
+                OnPropertyChanged(nameof(SelectedEffectHotkeyText));
                 NotifyCommandStates();
             }
         }
@@ -320,6 +326,28 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     public string CurrentTrackTitle => CurrentTrack?.Title ?? "Nothing is playing";
+
+    public string DataDirectory => _storage.DataDirectory;
+
+    public string BackgroundImagePath => string.IsNullOrWhiteSpace(_state.Theme.Background.ImageOriginalPath)
+        ? "No background image selected"
+        : _state.Theme.Background.ImageOriginalPath;
+
+    public string BackgroundImageStatus => _state.Theme.Background.Mode == BackgroundMode.Image
+        ? "Image background"
+        : "Theme preset background";
+
+    public string SelectedMusicHotkeyText => SelectedMusicPlaylist is null || SelectedMusicTrack is null
+        ? "Select track"
+        : HotkeyTextFor(HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, SelectedMusicTrack.Id));
+
+    public string SelectedEffectHotkeyText => SelectedEffectPlaylist is null || SelectedEffectTrack is null
+        ? "Select track"
+        : HotkeyTextFor(HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id));
+
+    public IReadOnlyList<HotkeyDisplayRow> SystemHotkeyRows => HotkeyAction.SystemActions
+        .Select(action => new HotkeyDisplayRow(action, SystemActionName(action), HotkeyTextFor(action)))
+        .ToList();
 
     public bool IsPlaying
     {
@@ -548,6 +576,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             _state.Hotkeys.Assign(hotkey, CaptureAction, resolvingConflicts: true);
             CaptureAction = null;
+            NotifyHotkeysChanged();
             Save();
             return true;
         }
@@ -623,6 +652,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _state.Theme.Background.Mode = BackgroundMode.Image;
         _state.Theme.Background.ImageOriginalPath = path;
         UpdateThemeBrushes();
+        OnPropertyChanged(nameof(BackgroundImagePath));
+        OnPropertyChanged(nameof(BackgroundImageStatus));
         Save();
     }
 
@@ -969,6 +1000,26 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         CaptureAction = HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id);
     }
 
+    private void BeginBindSystemHotkey(HotkeyAction? action)
+    {
+        if (action is not null)
+        {
+            CaptureAction = action;
+        }
+    }
+
+    private void ClearSystemHotkey(HotkeyAction? action)
+    {
+        if (action is null)
+        {
+            return;
+        }
+
+        _state.Hotkeys.Clear(action);
+        NotifyHotkeysChanged();
+        Save();
+    }
+
     private void CancelHotkeyCapture()
     {
         CaptureAction = null;
@@ -982,6 +1033,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         _state.Hotkeys.Clear(HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, SelectedMusicTrack.Id));
+        NotifyHotkeysChanged();
         Save();
     }
 
@@ -993,6 +1045,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         _state.Hotkeys.Clear(HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id));
+        NotifyHotkeysChanged();
         Save();
     }
 
@@ -1068,6 +1121,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         DangerBrush = ToBrush(resolved.Danger);
         TextPrimaryBrush = ToBrush(resolved.TextPrimary);
         TextSecondaryBrush = ToBrush(resolved.TextSecondary);
+        OnPropertyChanged(nameof(BackgroundImagePath));
+        OnPropertyChanged(nameof(BackgroundImageStatus));
     }
 
     private IBrush CreateBackgroundBrush(ResolvedTheme resolved)
@@ -1098,6 +1153,33 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         static byte Byte(double value) => (byte)Math.Round(ThemeColor.ClampUnit(value) * 255);
         return new SolidColorBrush(Color.FromArgb(Byte(color.Alpha), Byte(color.Red), Byte(color.Green), Byte(color.Blue)));
+    }
+
+    private string HotkeyTextFor(HotkeyAction action)
+    {
+        return _state.Hotkeys.HotkeyFor(action)?.DisplayText ?? "Unassigned";
+    }
+
+    private static string SystemActionName(HotkeyAction action)
+    {
+        return action.Kind switch
+        {
+            HotkeyActionKind.StopAll => "Stop all playback",
+            HotkeyActionKind.StopEffects => "Stop SFX",
+            HotkeyActionKind.PlayPause => "Play / pause music",
+            HotkeyActionKind.MusicVolumeUp => "Music volume up",
+            HotkeyActionKind.MusicVolumeDown => "Music volume down",
+            HotkeyActionKind.EffectsVolumeUp => "SFX volume up",
+            HotkeyActionKind.EffectsVolumeDown => "SFX volume down",
+            _ => "Unknown action"
+        };
+    }
+
+    private void NotifyHotkeysChanged()
+    {
+        OnPropertyChanged(nameof(SystemHotkeyRows));
+        OnPropertyChanged(nameof(SelectedMusicHotkeyText));
+        OnPropertyChanged(nameof(SelectedEffectHotkeyText));
     }
 
     private void RenamePlaylist(EffectPlaylist playlist, string value, string fallback)

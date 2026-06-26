@@ -1,0 +1,188 @@
+<Window
+    x:Class="DungeonSoundboard.App.SettingsWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Dungeon Soundboard Settings"
+    Width="760"
+    Height="620"
+    MinWidth="680"
+    MinHeight="560"
+    WindowStartupLocation="CenterOwner"
+    Background="{Binding Main.BackgroundBrush}">
+  <Window.Styles>
+    <Style Selector="TextBlock">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{Binding Main.TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{Binding Main.TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.sectionTitle">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.fieldLabel">
+      <Setter Property="Width" Value="124" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{Binding Main.TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Padding" Value="12,5" />
+      <Setter Property="Margin" Value="2" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{Binding Main.AccentBrush}" />
+      <Setter Property="Foreground" Value="#11151B" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Foreground" Value="{Binding Main.DangerBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0" Background="{Binding Main.PanelAltBrush}" CornerRadius="8" Padding="14" Margin="0,0,0,12">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
+          <TextBlock Classes="caption" Text="{Binding Main.CaptureStatus}" />
+        </StackPanel>
+        <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Main.StatusMessage}" Width="240" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="1" Background="{Binding Main.PanelBrush}" CornerRadius="8" Padding="12">
+      <TabControl>
+        <TabItem Header="Audio">
+          <ScrollViewer>
+            <StackPanel Spacing="14" Margin="2,10,8,8">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="sectionTitle" Text="Mixer" />
+                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto" RowSpacing="12">
+                  <TextBlock Classes="fieldLabel" Text="Music" />
+                  <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding Main.MusicVolume}" />
+                  <TextBlock Grid.Column="2" Width="54" Text="{Binding Main.MusicVolume, StringFormat={}{0:P0}}" TextAlignment="Right" />
+
+                  <TextBlock Grid.Row="1" Classes="fieldLabel" Text="SFX" />
+                  <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding Main.EffectsVolume}" />
+                  <TextBlock Grid.Row="1" Grid.Column="2" Width="54" Text="{Binding Main.EffectsVolume, StringFormat={}{0:P0}}" TextAlignment="Right" />
+
+                  <TextBlock Grid.Row="2" Classes="fieldLabel" Text="Ducking" />
+                  <Slider Grid.Row="2" Grid.Column="1" Minimum="0.2" Maximum="1" Value="{Binding Main.DuckingAmount}" />
+                  <TextBlock Grid.Row="2" Grid.Column="2" Width="54" Text="{Binding Main.DuckingAmount, StringFormat={}{0:P0}}" TextAlignment="Right" />
+                </Grid>
+              </StackPanel>
+
+              <StackPanel Spacing="8">
+                <TextBlock Classes="sectionTitle" Text="Playback" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <CheckBox Content="Shuffle" IsChecked="{Binding Main.ShuffleEnabled}" VerticalAlignment="Center" />
+                  <ComboBox Width="140" ItemsSource="{Binding Main.RepeatModeOptions}" SelectedItem="{Binding Main.RepeatMode}" />
+                  <Button Content="Stop SFX" Command="{Binding Main.StopEffectsCommand}" />
+                  <Button Classes="danger" Content="Stop All" Command="{Binding Main.StopAllCommand}" />
+                </StackPanel>
+                <TextBlock Classes="caption" Text="{Binding Main.CurrentTrackTitle}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+
+        <TabItem Header="Interface">
+          <ScrollViewer>
+            <StackPanel Spacing="14" Margin="2,10,8,8">
+              <StackPanel Spacing="8">
+                <TextBlock Classes="sectionTitle" Text="Theme" />
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+                  <TextBlock Classes="fieldLabel" Text="Preset" />
+                  <ComboBox Grid.Column="1" Width="220" HorizontalAlignment="Left" ItemsSource="{Binding Main.ThemePresetOptions}" SelectedItem="{Binding Main.SelectedThemePreset}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding Name}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+
+                  <TextBlock Grid.Row="1" Classes="fieldLabel" Text="Background" />
+                  <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primary" Content="Choose Image" Command="{Binding Main.ChooseBackgroundImageCommand}" />
+                    <TextBlock Classes="caption" Text="{Binding Main.BackgroundImageStatus}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Width="360" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+
+              <StackPanel Spacing="6">
+                <TextBlock Classes="sectionTitle" Text="Current Background" />
+                <TextBlock Text="{Binding Main.BackgroundImagePath}" TextWrapping="Wrap" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+
+        <TabItem Header="Hotkeys">
+          <ScrollViewer>
+            <StackPanel Spacing="14" Margin="2,10,8,8">
+              <StackPanel Spacing="8">
+                <TextBlock Classes="sectionTitle" Text="System Hotkeys" />
+                <ItemsControl ItemsSource="{Binding Main.SystemHotkeyRows}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Grid ColumnDefinitions="*,110,Auto,Auto" Margin="0,3">
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Classes="caption" Text="{Binding HotkeyText}" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Content="Bind" Command="{Binding DataContext.Main.BindSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Action}" />
+                        <Button Grid.Column="3" Content="Clear" Command="{Binding DataContext.Main.ClearSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Action}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Spacing="8">
+                <TextBlock Classes="sectionTitle" Text="Selected Tracks" />
+                <Grid ColumnDefinitions="*,110,Auto,Auto" RowDefinitions="Auto,Auto" RowSpacing="8">
+                  <TextBlock Text="{Binding Main.SelectedMusicTrackTitle}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Main.SelectedMusicHotkeyText}" VerticalAlignment="Center" />
+                  <Button Grid.Column="2" Content="Bind Music" Command="{Binding Main.BindSelectedMusicCommand}" />
+                  <Button Grid.Column="3" Content="Clear" Command="{Binding Main.ClearSelectedMusicBindingCommand}" />
+
+                  <TextBlock Grid.Row="1" Text="{Binding Main.SelectedEffectTrackTitle}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" Text="{Binding Main.SelectedEffectHotkeyText}" VerticalAlignment="Center" />
+                  <Button Grid.Row="1" Grid.Column="2" Content="Bind SFX" Command="{Binding Main.BindSelectedEffectCommand}" />
+                  <Button Grid.Row="1" Grid.Column="3" Content="Clear" Command="{Binding Main.ClearSelectedEffectBindingCommand}" />
+                </Grid>
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Classes="danger" Content="Cancel Capture" Command="{Binding Main.CancelHotkeyCaptureCommand}" />
+                <TextBlock Classes="caption" Text="{Binding Main.CaptureStatus}" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+
+        <TabItem Header="System">
+          <ScrollViewer>
+            <StackPanel Spacing="14" Margin="2,10,8,8">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="sectionTitle" Text="Storage" />
+                <TextBlock Text="{Binding Main.DataDirectory}" TextWrapping="Wrap" />
+                <TextBlock Classes="caption" Text="{Binding StorageFiles}" TextWrapping="Wrap" />
+              </StackPanel>
+
+              <StackPanel Spacing="6">
+                <TextBlock Classes="sectionTitle" Text="Audio Import" />
+                <TextBlock Text="{Binding SupportedAudioExtensions}" TextWrapping="Wrap" />
+                <TextBlock Classes="caption" Text="Playback uses the codecs available through NAudio and Windows media components." TextWrapping="Wrap" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+      </TabControl>
+    </Border>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Classes="primary" Content="Done" Click="OnDoneClick" />
+    </StackPanel>
+  </Grid>
+</Window>
