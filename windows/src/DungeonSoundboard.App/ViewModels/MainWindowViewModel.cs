@@ -91,6 +91,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         MoveEffectPlaylistUpCommand = new RelayCommand(() => MoveSelectedPlaylist(EffectPlaylists, SelectedEffectPlaylist, -1), () => CanMove(EffectPlaylists, SelectedEffectPlaylist, -1));
         MoveEffectPlaylistDownCommand = new RelayCommand(() => MoveSelectedPlaylist(EffectPlaylists, SelectedEffectPlaylist, 1), () => CanMove(EffectPlaylists, SelectedEffectPlaylist, 1));
         PlayMusicPlaylistItemCommand = new RelayCommand<Playlist>(PlayMusicPlaylistItem);
+        DeleteMusicPlaylistItemCommand = new RelayCommand<Playlist>(DeleteMusicPlaylist);
+        DeleteEffectPlaylistItemCommand = new RelayCommand<EffectPlaylist>(DeleteEffectPlaylist);
+        MoveMusicPlaylistItemUpCommand = new RelayCommand<Playlist>(playlist => MoveMusicPlaylistItem(playlist, -1));
+        MoveMusicPlaylistItemDownCommand = new RelayCommand<Playlist>(playlist => MoveMusicPlaylistItem(playlist, 1));
+        MoveEffectPlaylistItemUpCommand = new RelayCommand<EffectPlaylist>(playlist => MoveEffectPlaylistItem(playlist, -1));
+        MoveEffectPlaylistItemDownCommand = new RelayCommand<EffectPlaylist>(playlist => MoveEffectPlaylistItem(playlist, 1));
         AddMusicFilesCommand = new AsyncRelayCommand(AddMusicFilesAsync);
         AddMusicFolderCommand = new AsyncRelayCommand(AddMusicFolderAsync);
         AddEffectFilesCommand = new AsyncRelayCommand(AddEffectFilesAsync);
@@ -150,6 +156,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand MoveEffectPlaylistUpCommand { get; }
     public IRelayCommand MoveEffectPlaylistDownCommand { get; }
     public IRelayCommand<Playlist> PlayMusicPlaylistItemCommand { get; }
+    public IRelayCommand<Playlist> DeleteMusicPlaylistItemCommand { get; }
+    public IRelayCommand<EffectPlaylist> DeleteEffectPlaylistItemCommand { get; }
+    public IRelayCommand<Playlist> MoveMusicPlaylistItemUpCommand { get; }
+    public IRelayCommand<Playlist> MoveMusicPlaylistItemDownCommand { get; }
+    public IRelayCommand<EffectPlaylist> MoveEffectPlaylistItemUpCommand { get; }
+    public IRelayCommand<EffectPlaylist> MoveEffectPlaylistItemDownCommand { get; }
     public IAsyncRelayCommand AddMusicFilesCommand { get; }
     public IAsyncRelayCommand AddMusicFolderCommand { get; }
     public IAsyncRelayCommand AddEffectFilesCommand { get; }
@@ -930,32 +942,65 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void DeleteSelectedMusicPlaylist()
     {
-        if (SelectedMusicPlaylist is null || MusicPlaylists.Count <= 1)
+        DeleteMusicPlaylist(SelectedMusicPlaylist);
+    }
+
+    private void DeleteSelectedEffectPlaylist()
+    {
+        DeleteEffectPlaylist(SelectedEffectPlaylist);
+    }
+
+    private void DeleteMusicPlaylist(Playlist? playlist)
+    {
+        if (playlist is null || MusicPlaylists.Count <= 1)
         {
             return;
         }
 
-        var removed = SelectedMusicPlaylist;
+        var removed = MusicPlaylists.FirstOrDefault(candidate => candidate.Id == playlist.Id);
+        if (removed is null)
+        {
+            return;
+        }
+
+        var wasSelected = SelectedMusicPlaylist?.Id == removed.Id;
         MusicPlaylists.Remove(removed);
         if (_playbackMusicPlaylist?.Id == removed.Id)
         {
             StopAll();
         }
 
-        SelectedMusicPlaylist = MusicPlaylists.FirstOrDefault();
+        if (wasSelected)
+        {
+            SelectedMusicPlaylist = MusicPlaylists.FirstOrDefault();
+        }
+
         Save();
+        NotifyCommandStates();
     }
 
-    private void DeleteSelectedEffectPlaylist()
+    private void DeleteEffectPlaylist(EffectPlaylist? playlist)
     {
-        if (SelectedEffectPlaylist is null || EffectPlaylists.Count <= 1)
+        if (playlist is null || EffectPlaylists.Count <= 1)
         {
             return;
         }
 
-        EffectPlaylists.Remove(SelectedEffectPlaylist);
-        SelectedEffectPlaylist = EffectPlaylists.FirstOrDefault();
+        var removed = EffectPlaylists.FirstOrDefault(candidate => candidate.Id == playlist.Id);
+        if (removed is null)
+        {
+            return;
+        }
+
+        var wasSelected = SelectedEffectPlaylist?.Id == removed.Id;
+        EffectPlaylists.Remove(removed);
+        if (wasSelected)
+        {
+            SelectedEffectPlaylist = EffectPlaylists.FirstOrDefault();
+        }
+
         Save();
+        NotifyCommandStates();
     }
 
     private void DeleteSelectedMusicTrack()
@@ -1025,12 +1070,34 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void MoveSelectedPlaylist<T>(ObservableCollection<T> collection, T? selected, int delta)
         where T : class
     {
-        if (selected is null)
+        MovePlaylistItem(collection, selected, delta);
+    }
+
+    private void MoveMusicPlaylistItem(Playlist? playlist, int delta)
+    {
+        var target = playlist is null
+            ? null
+            : MusicPlaylists.FirstOrDefault(candidate => candidate.Id == playlist.Id);
+        MovePlaylistItem(MusicPlaylists, target, delta);
+    }
+
+    private void MoveEffectPlaylistItem(EffectPlaylist? playlist, int delta)
+    {
+        var target = playlist is null
+            ? null
+            : EffectPlaylists.FirstOrDefault(candidate => candidate.Id == playlist.Id);
+        MovePlaylistItem(EffectPlaylists, target, delta);
+    }
+
+    private void MovePlaylistItem<T>(ObservableCollection<T> collection, T? item, int delta)
+        where T : class
+    {
+        if (item is null)
         {
             return;
         }
 
-        var index = collection.IndexOf(selected);
+        var index = collection.IndexOf(item);
         var targetIndex = index + delta;
         if (index < 0 || targetIndex < 0 || targetIndex >= collection.Count)
         {

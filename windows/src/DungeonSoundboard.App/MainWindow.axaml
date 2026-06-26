@@ -141,6 +141,20 @@
                           Header="Shuffle Play"
                           Command="{Binding DataContext.PlayMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                           CommandParameter="{Binding}" />
+                      <Separator />
+                      <MenuItem
+                          Header="Move Up"
+                          Command="{Binding DataContext.MoveMusicPlaylistItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
+                      <MenuItem
+                          Header="Move Down"
+                          Command="{Binding DataContext.MoveMusicPlaylistItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
+                      <Separator />
+                      <MenuItem
+                          Header="Delete"
+                          Command="{Binding DataContext.DeleteMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
                     </ContextMenu>
                   </Border.ContextMenu>
                   <Grid ColumnDefinitions="*,Auto,Auto">
@@ -174,6 +188,23 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Border Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="6" Padding="10,8" Margin="0,2">
+                  <Border.ContextMenu>
+                    <ContextMenu DataContext="{Binding}">
+                      <MenuItem
+                          Header="Move Up"
+                          Command="{Binding DataContext.MoveEffectPlaylistItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
+                      <MenuItem
+                          Header="Move Down"
+                          Command="{Binding DataContext.MoveEffectPlaylistItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
+                      <Separator />
+                      <MenuItem
+                          Header="Delete"
+                          Command="{Binding DataContext.DeleteEffectPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
+                    </ContextMenu>
+                  </Border.ContextMenu>
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                     <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Effects.Count}" Margin="10,0,0,0" />

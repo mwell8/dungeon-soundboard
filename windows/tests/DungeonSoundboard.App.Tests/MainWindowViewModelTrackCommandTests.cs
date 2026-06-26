@@ -172,6 +172,55 @@ public sealed class MainWindowViewModelTrackCommandTests
         Assert.False(viewModel.IsPlaying);
     }
 
+    [Fact]
+    public void DeleteMusicPlaylistItemRemovesRequestedPlaylistWithoutChangingOtherSelection()
+    {
+        var selectedPlaylist = new Playlist("Selected", [new Track("Selected Track", "C:\\audio\\selected.mp3", TrackRole.Music)]);
+        var removedPlaylist = new Playlist("Remove Me", [new Track("Removed Track", "C:\\audio\\removed.mp3", TrackRole.Music)]);
+        var storage = StorageWithMusicPlaylists([selectedPlaylist, removedPlaylist]);
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.DeleteMusicPlaylistItemCommand.Execute(removedPlaylist);
+
+        Assert.Single(viewModel.MusicPlaylists);
+        Assert.Equal(selectedPlaylist.Id, viewModel.MusicPlaylists[0].Id);
+        Assert.Equal(selectedPlaylist.Id, viewModel.SelectedMusicPlaylist?.Id);
+        Assert.True(storage.SaveCount > 0);
+    }
+
+    [Fact]
+    public void DeleteMusicPlaylistItemKeepsLastPlaylist()
+    {
+        var onlyPlaylist = new Playlist("Only", [new Track("Only Track", "C:\\audio\\only.mp3", TrackRole.Music)]);
+        var storage = StorageWithMusicPlaylists([onlyPlaylist]);
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.DeleteMusicPlaylistItemCommand.Execute(onlyPlaylist);
+
+        Assert.Single(viewModel.MusicPlaylists);
+        Assert.Equal(onlyPlaylist.Id, viewModel.SelectedMusicPlaylist?.Id);
+    }
+
+    [Fact]
+    public void MoveEffectPlaylistItemUpReordersRequestedPlaylist()
+    {
+        var first = new EffectPlaylist("First");
+        var second = new EffectPlaylist("Second");
+        var third = new EffectPlaylist("Third");
+        var storage = StorageWithEffectPlaylists([first, second, third]);
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.MoveEffectPlaylistItemUpCommand.Execute(third);
+
+        Assert.Collection(
+            viewModel.EffectPlaylists,
+            playlist => Assert.Equal(first.Id, playlist.Id),
+            playlist => Assert.Equal(third.Id, playlist.Id),
+            playlist => Assert.Equal(second.Id, playlist.Id));
+        Assert.Equal(first.Id, viewModel.SelectedEffectPlaylist?.Id);
+        Assert.True(storage.SaveCount > 0);
+    }
+
     private static MainWindowViewModel CreateViewModel(FakeStorageService storage)
     {
         return CreateViewModel(storage, new FakeAudioService());
@@ -209,6 +258,23 @@ public sealed class MainWindowViewModelTrackCommandTests
             {
                 SelectedMusicPlaylistId = musicPlaylists[0].Id,
                 SelectedEffectPlaylistId = effectPlaylist.Id
+            }
+        };
+
+        return new FakeStorageService(state);
+    }
+
+    private static FakeStorageService StorageWithEffectPlaylists(IReadOnlyList<EffectPlaylist> effectPlaylists)
+    {
+        var musicPlaylist = new Playlist("Music");
+        var state = new AppState
+        {
+            MusicPlaylists = [musicPlaylist],
+            EffectPlaylists = effectPlaylists.ToList(),
+            Preferences = new PlayerPreferences
+            {
+                SelectedMusicPlaylistId = musicPlaylist.Id,
+                SelectedEffectPlaylistId = effectPlaylists[0].Id
             }
         };
 
