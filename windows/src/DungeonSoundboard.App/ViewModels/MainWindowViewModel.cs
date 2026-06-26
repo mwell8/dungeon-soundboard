@@ -1,0 +1,1156 @@
+using System.Collections.ObjectModel;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using DungeonSoundboard.App.Services;
+using DungeonSoundboard.Core.Models;
+using DungeonSoundboard.Core.Services;
+
+namespace DungeonSoundboard.App.ViewModels;
+
+public sealed class MainWindowViewModel : ObservableObject, IDisposable
+{
+    private readonly IStorageService _storage;
+    private readonly IFileImportService _importService;
+    private readonly IAudioService _audio;
+    private readonly Random _random = new();
+    private AppState _state;
+    private Playlist? _selectedMusicPlaylist;
+    private EffectPlaylist? _selectedEffectPlaylist;
+    private Track? _selectedMusicTrack;
+    private Track? _selectedEffectTrack;
+    private Track? _currentTrack;
+    private Playlist? _playbackMusicPlaylist;
+    private bool _isPlaying;
+    private string? _errorMessage;
+    private string _lastImportMessage = "";
+    private HotkeyAction? _captureAction;
+    private ThemePresetOption? _selectedThemePreset;
+    private IBrush _backgroundBrush = Brushes.Black;
+    private IBrush _panelBrush = Brushes.DimGray;
+    private IBrush _panelAltBrush = Brushes.Gray;
+    private IBrush _cardBrush = Brushes.Gray;
+    private IBrush _currentCardBrush = Brushes.DarkGoldenrod;
+    private IBrush _accentBrush = Brushes.Goldenrod;
+    private IBrush _dangerBrush = Brushes.IndianRed;
+    private IBrush _textPrimaryBrush = Brushes.White;
+    private IBrush _textSecondaryBrush = Brushes.LightGray;
+
+    public MainWindowViewModel()
+        : this(new JsonFileStorageService(), new FileImportService(), new NAudioAudioService())
+    {
+    }
+
+    public MainWindowViewModel(IStorageService storage, IFileImportService importService, IAudioService audio)
+    {
+        _storage = storage;
+        _importService = importService;
+        _audio = audio;
+        _audio.MusicFinished += (_, _) => NextTrackFromPlaybackEnd();
+        _audio.EffectPlaybackCountChanged += (_, _) => ApplyMusicVolume();
+
+        _state = _storage.Load();
+        MusicPlaylists = new ObservableCollection<Playlist>(_state.MusicPlaylists);
+        EffectPlaylists = new ObservableCollection<EffectPlaylist>(_state.EffectPlaylists);
+        SelectedMusicPlaylist = MusicPlaylists.FirstOrDefault(playlist => playlist.Id == _state.Preferences.SelectedMusicPlaylistId)
+            ?? MusicPlaylists.FirstOrDefault();
+        SelectedEffectPlaylist = EffectPlaylists.FirstOrDefault(playlist => playlist.Id == _state.Preferences.SelectedEffectPlaylistId)
+            ?? EffectPlaylists.FirstOrDefault();
+        CurrentTrack = SelectedMusicPlaylist?.Tracks.FirstOrDefault();
+        _playbackMusicPlaylist = SelectedMusicPlaylist;
+
+        ThemePresetOptions =
+        [
+            new ThemePresetOption(ThemePreset.ClassicDungeon, "Classic Dungeon"),
+            new ThemePresetOption(ThemePreset.TavernEmber, "Tavern Ember"),
+            new ThemePresetOption(ThemePreset.MoonlitCrypt, "Moonlit Crypt"),
+            new ThemePresetOption(ThemePreset.ForestMist, "Forest Mist")
+        ];
+        RepeatModeOptions = [RepeatMode.Off, RepeatMode.One, RepeatMode.All];
+        SelectedThemePreset = ThemePresetOptions.FirstOrDefault(option => option.Preset == _state.Theme.Preset)
+            ?? ThemePresetOptions[0];
+        UpdateThemeBrushes();
+
+        CreateMusicPlaylistCommand = new RelayCommand(CreateMusicPlaylist);
+        CreateEffectPlaylistCommand = new RelayCommand(CreateEffectPlaylist);
+        DeleteMusicPlaylistCommand = new RelayCommand(DeleteSelectedMusicPlaylist, () => MusicPlaylists.Count > 1 && SelectedMusicPlaylist is not null);
+        DeleteEffectPlaylistCommand = new RelayCommand(DeleteSelectedEffectPlaylist, () => EffectPlaylists.Count > 1 && SelectedEffectPlaylist is not null);
+        MoveMusicPlaylistUpCommand = new RelayCommand(() => MoveSelectedPlaylist(MusicPlaylists, SelectedMusicPlaylist, -1), () => CanMove(MusicPlaylists, SelectedMusicPlaylist, -1));
+        MoveMusicPlaylistDownCommand = new RelayCommand(() => MoveSelectedPlaylist(MusicPlaylists, SelectedMusicPlaylist, 1), () => CanMove(MusicPlaylists, SelectedMusicPlaylist, 1));
+        MoveEffectPlaylistUpCommand = new RelayCommand(() => MoveSelectedPlaylist(EffectPlaylists, SelectedEffectPlaylist, -1), () => CanMove(EffectPlaylists, SelectedEffectPlaylist, -1));
+        MoveEffectPlaylistDownCommand = new RelayCommand(() => MoveSelectedPlaylist(EffectPlaylists, SelectedEffectPlaylist, 1), () => CanMove(EffectPlaylists, SelectedEffectPlaylist, 1));
+        AddMusicFilesCommand = new AsyncRelayCommand(AddMusicFilesAsync);
+        AddMusicFolderCommand = new AsyncRelayCommand(AddMusicFolderAsync);
+        AddEffectFilesCommand = new AsyncRelayCommand(AddEffectFilesAsync);
+        AddEffectFolderCommand = new AsyncRelayCommand(AddEffectFolderAsync);
+        PlaySelectedMusicCommand = new RelayCommand(() => PlayMusicTrack(SelectedMusicPlaylist, SelectedMusicTrack), () => SelectedMusicTrack is not null);
+        PlayMusicTrackCommand = new RelayCommand<Track>(track => PlayMusicTrack(SelectedMusicPlaylist, track));
+        PlayEffectCommand = new RelayCommand<Track>(PlayEffect);
+        PlayPauseCommand = new RelayCommand(PlayPause);
+        StopAllCommand = new RelayCommand(StopAll);
+        StopEffectsCommand = new RelayCommand(StopEffects);
+        NextTrackCommand = new RelayCommand(NextTrack);
+        PreviousTrackCommand = new RelayCommand(PreviousTrack);
+        DeleteMusicTrackCommand = new RelayCommand(DeleteSelectedMusicTrack, () => SelectedMusicTrack is not null);
+        DeleteEffectTrackCommand = new RelayCommand(DeleteSelectedEffectTrack, () => SelectedEffectTrack is not null);
+        MoveMusicTrackUpCommand = new RelayCommand(() => MoveSelectedTrack(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, -1, nameof(MusicTracks)), () => CanMove(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, -1));
+        MoveMusicTrackDownCommand = new RelayCommand(() => MoveSelectedTrack(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, 1, nameof(MusicTracks)), () => CanMove(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, 1));
+        MoveEffectTrackUpCommand = new RelayCommand(() => MoveSelectedTrack(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, -1, nameof(EffectTracks)), () => CanMove(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, -1));
+        MoveEffectTrackDownCommand = new RelayCommand(() => MoveSelectedTrack(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, 1, nameof(EffectTracks)), () => CanMove(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, 1));
+        BindSelectedMusicCommand = new RelayCommand(BeginBindSelectedMusic, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
+        BindSelectedEffectCommand = new RelayCommand(BeginBindSelectedEffect, () => SelectedEffectPlaylist is not null && SelectedEffectTrack is not null);
+        CancelHotkeyCaptureCommand = new RelayCommand(CancelHotkeyCapture, () => CaptureAction is not null);
+        ClearSelectedMusicBindingCommand = new RelayCommand(ClearSelectedMusicBinding, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
+        ClearSelectedEffectBindingCommand = new RelayCommand(ClearSelectedEffectBinding, () => SelectedEffectPlaylist is not null && SelectedEffectTrack is not null);
+        ChooseBackgroundImageCommand = new AsyncRelayCommand(ChooseBackgroundImageAsync);
+    }
+
+    public IFileDialogService? FileDialogService { get; set; }
+
+    public ObservableCollection<Playlist> MusicPlaylists { get; }
+    public ObservableCollection<EffectPlaylist> EffectPlaylists { get; }
+    public IReadOnlyList<ThemePresetOption> ThemePresetOptions { get; }
+    public IReadOnlyList<RepeatMode> RepeatModeOptions { get; }
+
+    public IRelayCommand CreateMusicPlaylistCommand { get; }
+    public IRelayCommand CreateEffectPlaylistCommand { get; }
+    public IRelayCommand DeleteMusicPlaylistCommand { get; }
+    public IRelayCommand DeleteEffectPlaylistCommand { get; }
+    public IRelayCommand MoveMusicPlaylistUpCommand { get; }
+    public IRelayCommand MoveMusicPlaylistDownCommand { get; }
+    public IRelayCommand MoveEffectPlaylistUpCommand { get; }
+    public IRelayCommand MoveEffectPlaylistDownCommand { get; }
+    public IAsyncRelayCommand AddMusicFilesCommand { get; }
+    public IAsyncRelayCommand AddMusicFolderCommand { get; }
+    public IAsyncRelayCommand AddEffectFilesCommand { get; }
+    public IAsyncRelayCommand AddEffectFolderCommand { get; }
+    public IRelayCommand PlaySelectedMusicCommand { get; }
+    public IRelayCommand<Track> PlayMusicTrackCommand { get; }
+    public IRelayCommand<Track> PlayEffectCommand { get; }
+    public IRelayCommand PlayPauseCommand { get; }
+    public IRelayCommand StopAllCommand { get; }
+    public IRelayCommand StopEffectsCommand { get; }
+    public IRelayCommand NextTrackCommand { get; }
+    public IRelayCommand PreviousTrackCommand { get; }
+    public IRelayCommand DeleteMusicTrackCommand { get; }
+    public IRelayCommand DeleteEffectTrackCommand { get; }
+    public IRelayCommand MoveMusicTrackUpCommand { get; }
+    public IRelayCommand MoveMusicTrackDownCommand { get; }
+    public IRelayCommand MoveEffectTrackUpCommand { get; }
+    public IRelayCommand MoveEffectTrackDownCommand { get; }
+    public IRelayCommand BindSelectedMusicCommand { get; }
+    public IRelayCommand BindSelectedEffectCommand { get; }
+    public IRelayCommand CancelHotkeyCaptureCommand { get; }
+    public IRelayCommand ClearSelectedMusicBindingCommand { get; }
+    public IRelayCommand ClearSelectedEffectBindingCommand { get; }
+    public IAsyncRelayCommand ChooseBackgroundImageCommand { get; }
+
+    public Playlist? SelectedMusicPlaylist
+    {
+        get => _selectedMusicPlaylist;
+        set
+        {
+            if (!SetProperty(ref _selectedMusicPlaylist, value))
+            {
+                return;
+            }
+
+            _state.Preferences.SelectedMusicPlaylistId = value?.Id;
+            SelectedMusicTrack = value?.Tracks.FirstOrDefault();
+            OnPropertyChanged(nameof(MusicTracks));
+            OnPropertyChanged(nameof(SelectedMusicPlaylistName));
+            Save();
+            NotifyCommandStates();
+        }
+    }
+
+    public EffectPlaylist? SelectedEffectPlaylist
+    {
+        get => _selectedEffectPlaylist;
+        set
+        {
+            if (!SetProperty(ref _selectedEffectPlaylist, value))
+            {
+                return;
+            }
+
+            _state.Preferences.SelectedEffectPlaylistId = value?.Id;
+            SelectedEffectTrack = value?.Effects.FirstOrDefault();
+            OnPropertyChanged(nameof(EffectTracks));
+            OnPropertyChanged(nameof(SelectedEffectPlaylistName));
+            Save();
+            NotifyCommandStates();
+        }
+    }
+
+    public Track? SelectedMusicTrack
+    {
+        get => _selectedMusicTrack;
+        set
+        {
+            if (SetProperty(ref _selectedMusicTrack, value))
+            {
+                OnPropertyChanged(nameof(SelectedMusicTrackTitle));
+                OnPropertyChanged(nameof(SelectedMusicTrackVolume));
+                NotifyCommandStates();
+            }
+        }
+    }
+
+    public Track? SelectedEffectTrack
+    {
+        get => _selectedEffectTrack;
+        set
+        {
+            if (SetProperty(ref _selectedEffectTrack, value))
+            {
+                OnPropertyChanged(nameof(SelectedEffectTrackTitle));
+                OnPropertyChanged(nameof(SelectedEffectTrackVolume));
+                NotifyCommandStates();
+            }
+        }
+    }
+
+    public IReadOnlyList<Track> MusicTracks => SelectedMusicPlaylist?.Tracks ?? [];
+    public IReadOnlyList<Track> EffectTracks => SelectedEffectPlaylist?.Effects ?? [];
+
+    public string SelectedMusicPlaylistName
+    {
+        get => SelectedMusicPlaylist?.Name ?? "";
+        set
+        {
+            if (SelectedMusicPlaylist is null)
+            {
+                return;
+            }
+
+            RenamePlaylist(SelectedMusicPlaylist, value, "Main Playlist");
+        }
+    }
+
+    public string SelectedEffectPlaylistName
+    {
+        get => SelectedEffectPlaylist?.Name ?? "";
+        set
+        {
+            if (SelectedEffectPlaylist is null)
+            {
+                return;
+            }
+
+            RenamePlaylist(SelectedEffectPlaylist, value, "SFX Master");
+        }
+    }
+
+    public string SelectedMusicTrackTitle
+    {
+        get => SelectedMusicTrack?.Title ?? "";
+        set
+        {
+            if (SelectedMusicTrack is null)
+            {
+                return;
+            }
+
+            RenameTrack(SelectedMusicTrack, value);
+            OnPropertyChanged(nameof(MusicTracks));
+        }
+    }
+
+    public string SelectedEffectTrackTitle
+    {
+        get => SelectedEffectTrack?.Title ?? "";
+        set
+        {
+            if (SelectedEffectTrack is null)
+            {
+                return;
+            }
+
+            RenameTrack(SelectedEffectTrack, value);
+            OnPropertyChanged(nameof(EffectTracks));
+        }
+    }
+
+    public double SelectedMusicTrackVolume
+    {
+        get => SelectedMusicTrack?.VolumeMultiplier ?? Track.DefaultVolumeMultiplier;
+        set
+        {
+            if (SelectedMusicTrack is null)
+            {
+                return;
+            }
+
+            SelectedMusicTrack.VolumeMultiplier = value;
+            ApplyMusicVolume();
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public double SelectedEffectTrackVolume
+    {
+        get => SelectedEffectTrack?.VolumeMultiplier ?? Track.DefaultVolumeMultiplier;
+        set
+        {
+            if (SelectedEffectTrack is null)
+            {
+                return;
+            }
+
+            SelectedEffectTrack.VolumeMultiplier = value;
+            Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public Track? CurrentTrack
+    {
+        get => _currentTrack;
+        private set
+        {
+            if (SetProperty(ref _currentTrack, value))
+            {
+                OnPropertyChanged(nameof(CurrentTrackTitle));
+                ApplyMusicVolume();
+            }
+        }
+    }
+
+    public string CurrentTrackTitle => CurrentTrack?.Title ?? "Nothing is playing";
+
+    public bool IsPlaying
+    {
+        get => _isPlaying;
+        private set => SetProperty(ref _isPlaying, value);
+    }
+
+    public string? ErrorMessage
+    {
+        get => _errorMessage;
+        private set
+        {
+            if (SetProperty(ref _errorMessage, value))
+            {
+                OnPropertyChanged(nameof(StatusMessage));
+            }
+        }
+    }
+
+    public string LastImportMessage
+    {
+        get => _lastImportMessage;
+        private set
+        {
+            if (SetProperty(ref _lastImportMessage, value))
+            {
+                OnPropertyChanged(nameof(StatusMessage));
+            }
+        }
+    }
+
+    public string StatusMessage => ErrorMessage ?? LastImportMessage;
+
+    public double MusicVolume
+    {
+        get => _state.Preferences.Volume;
+        set
+        {
+            var clamped = PlayerPreferences.ClampUnit(value);
+            if (Math.Abs(_state.Preferences.Volume - clamped) < 0.0001)
+            {
+                return;
+            }
+
+            _state.Preferences.Volume = clamped;
+            OnPropertyChanged();
+            ApplyMusicVolume();
+            Save();
+        }
+    }
+
+    public double EffectsVolume
+    {
+        get => _state.Preferences.EffectsVolume;
+        set
+        {
+            var clamped = PlayerPreferences.ClampUnit(value);
+            if (Math.Abs(_state.Preferences.EffectsVolume - clamped) < 0.0001)
+            {
+                return;
+            }
+
+            _state.Preferences.EffectsVolume = clamped;
+            OnPropertyChanged();
+            _audio.SetEffectsVolume(clamped);
+            Save();
+        }
+    }
+
+    public double DuckingAmount
+    {
+        get => _state.Preferences.DuckingAmount;
+        set
+        {
+            var clamped = PlayerPreferences.ClampDucking(value);
+            if (Math.Abs(_state.Preferences.DuckingAmount - clamped) < 0.0001)
+            {
+                return;
+            }
+
+            _state.Preferences.DuckingAmount = clamped;
+            OnPropertyChanged();
+            ApplyMusicVolume();
+            Save();
+        }
+    }
+
+    public bool ShuffleEnabled
+    {
+        get => _state.Preferences.ShuffleEnabled;
+        set
+        {
+            if (_state.Preferences.ShuffleEnabled == value)
+            {
+                return;
+            }
+
+            _state.Preferences.ShuffleEnabled = value;
+            OnPropertyChanged();
+            Save();
+        }
+    }
+
+    public RepeatMode RepeatMode
+    {
+        get => _state.Preferences.RepeatMode;
+        set
+        {
+            if (_state.Preferences.RepeatMode == value)
+            {
+                return;
+            }
+
+            _state.Preferences.RepeatMode = value;
+            OnPropertyChanged();
+            Save();
+        }
+    }
+
+    public HotkeyAction? CaptureAction
+    {
+        get => _captureAction;
+        private set
+        {
+            if (SetProperty(ref _captureAction, value))
+            {
+                OnPropertyChanged(nameof(CaptureStatus));
+                NotifyCommandStates();
+            }
+        }
+    }
+
+    public string CaptureStatus => CaptureAction is null
+        ? "Hotkeys active: Space, Delete, +/-, Shift +/-"
+        : "Press a key to assign it, or Esc to cancel";
+
+    public ThemePresetOption? SelectedThemePreset
+    {
+        get => _selectedThemePreset;
+        set
+        {
+            if (!SetProperty(ref _selectedThemePreset, value) || value is null)
+            {
+                return;
+            }
+
+            _state.Theme = ThemeRenderer.ThemeFor(value.Preset);
+            UpdateThemeBrushes();
+            Save();
+        }
+    }
+
+    public IBrush BackgroundBrush
+    {
+        get => _backgroundBrush;
+        private set => SetProperty(ref _backgroundBrush, value);
+    }
+
+    public IBrush PanelBrush
+    {
+        get => _panelBrush;
+        private set => SetProperty(ref _panelBrush, value);
+    }
+
+    public IBrush PanelAltBrush
+    {
+        get => _panelAltBrush;
+        private set => SetProperty(ref _panelAltBrush, value);
+    }
+
+    public IBrush CardBrush
+    {
+        get => _cardBrush;
+        private set => SetProperty(ref _cardBrush, value);
+    }
+
+    public IBrush CurrentCardBrush
+    {
+        get => _currentCardBrush;
+        private set => SetProperty(ref _currentCardBrush, value);
+    }
+
+    public IBrush AccentBrush
+    {
+        get => _accentBrush;
+        private set => SetProperty(ref _accentBrush, value);
+    }
+
+    public IBrush DangerBrush
+    {
+        get => _dangerBrush;
+        private set => SetProperty(ref _dangerBrush, value);
+    }
+
+    public IBrush TextPrimaryBrush
+    {
+        get => _textPrimaryBrush;
+        private set => SetProperty(ref _textPrimaryBrush, value);
+    }
+
+    public IBrush TextSecondaryBrush
+    {
+        get => _textSecondaryBrush;
+        private set => SetProperty(ref _textSecondaryBrush, value);
+    }
+
+    public void ImportDroppedMusic(IEnumerable<string> paths)
+    {
+        ImportTracks(paths, TrackRole.Music);
+    }
+
+    public void ImportDroppedEffects(IEnumerable<string> paths)
+    {
+        ImportTracks(paths, TrackRole.Effect);
+    }
+
+    public bool HandleHotkey(Hotkey hotkey)
+    {
+        if (hotkey.KeyCode == HotkeyConfiguration.EscapeKeyCode && CaptureAction is not null)
+        {
+            CancelHotkeyCapture();
+            return true;
+        }
+
+        if (CaptureAction is not null)
+        {
+            _state.Hotkeys.Assign(hotkey, CaptureAction, resolvingConflicts: true);
+            CaptureAction = null;
+            Save();
+            return true;
+        }
+
+        var action = _state.Hotkeys.ActionFor(hotkey);
+        if (action is null)
+        {
+            return false;
+        }
+
+        ExecuteHotkeyAction(action);
+        return true;
+    }
+
+    public void Dispose()
+    {
+        _audio.Dispose();
+    }
+
+    private async Task AddMusicFilesAsync()
+    {
+        if (FileDialogService is null)
+        {
+            return;
+        }
+
+        ImportTracks(await FileDialogService.OpenAudioFilesAsync(), TrackRole.Music);
+    }
+
+    private async Task AddMusicFolderAsync()
+    {
+        if (FileDialogService is null)
+        {
+            return;
+        }
+
+        ImportTracks(await FileDialogService.OpenAudioFolderAsync(), TrackRole.Music);
+    }
+
+    private async Task AddEffectFilesAsync()
+    {
+        if (FileDialogService is null)
+        {
+            return;
+        }
+
+        ImportTracks(await FileDialogService.OpenAudioFilesAsync(), TrackRole.Effect);
+    }
+
+    private async Task AddEffectFolderAsync()
+    {
+        if (FileDialogService is null)
+        {
+            return;
+        }
+
+        ImportTracks(await FileDialogService.OpenAudioFolderAsync(), TrackRole.Effect);
+    }
+
+    private async Task ChooseBackgroundImageAsync()
+    {
+        if (FileDialogService is null)
+        {
+            return;
+        }
+
+        var path = (await FileDialogService.OpenBackgroundImageAsync()).FirstOrDefault();
+        if (path is null)
+        {
+            return;
+        }
+
+        _state.Theme.Background.Mode = BackgroundMode.Image;
+        _state.Theme.Background.ImageOriginalPath = path;
+        UpdateThemeBrushes();
+        Save();
+    }
+
+    private void ImportTracks(IEnumerable<string> paths, TrackRole role)
+    {
+        ErrorMessage = null;
+        if (role == TrackRole.Music)
+        {
+            if (SelectedMusicPlaylist is null)
+            {
+                return;
+            }
+
+            var result = _importService.BuildUniqueTracks(paths, role, SelectedMusicPlaylist.Tracks, "Music Playlists");
+            SelectedMusicPlaylist.Tracks.AddRange(result.AddedTracks);
+            if (CurrentTrack is null)
+            {
+                CurrentTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
+                _playbackMusicPlaylist = SelectedMusicPlaylist;
+            }
+
+            OnPropertyChanged(nameof(MusicTracks));
+            LastImportMessage = ImportMessage(result);
+        }
+        else
+        {
+            if (SelectedEffectPlaylist is null)
+            {
+                return;
+            }
+
+            var result = _importService.BuildUniqueTracks(paths, role, SelectedEffectPlaylist.Effects, "SFX Playlists");
+            SelectedEffectPlaylist.Effects.AddRange(result.AddedTracks);
+            OnPropertyChanged(nameof(EffectTracks));
+            LastImportMessage = ImportMessage(result);
+        }
+
+        Save();
+    }
+
+    private static string ImportMessage(FileImportResult result)
+    {
+        if (result.ConflictSummary is null)
+        {
+            return result.AddedTracks.Count == 0 ? "No supported audio files found." : $"Added {result.AddedTracks.Count} file(s).";
+        }
+
+        return $"Added {result.ConflictSummary.AddedCount}; skipped duplicates: {result.ConflictSummary.DuplicateCount}.";
+    }
+
+    private void CreateMusicPlaylist()
+    {
+        var playlist = new Playlist(NextPlaylistName("Playlist", MusicPlaylists.Select(item => item.Name)));
+        MusicPlaylists.Add(playlist);
+        SelectedMusicPlaylist = playlist;
+        Save();
+        NotifyCommandStates();
+    }
+
+    private void CreateEffectPlaylist()
+    {
+        var playlist = new EffectPlaylist(NextPlaylistName("SFX", EffectPlaylists.Select(item => item.Name)));
+        EffectPlaylists.Add(playlist);
+        SelectedEffectPlaylist = playlist;
+        Save();
+        NotifyCommandStates();
+    }
+
+    private void DeleteSelectedMusicPlaylist()
+    {
+        if (SelectedMusicPlaylist is null || MusicPlaylists.Count <= 1)
+        {
+            return;
+        }
+
+        var removed = SelectedMusicPlaylist;
+        MusicPlaylists.Remove(removed);
+        if (_playbackMusicPlaylist?.Id == removed.Id)
+        {
+            StopAll();
+        }
+
+        SelectedMusicPlaylist = MusicPlaylists.FirstOrDefault();
+        Save();
+    }
+
+    private void DeleteSelectedEffectPlaylist()
+    {
+        if (SelectedEffectPlaylist is null || EffectPlaylists.Count <= 1)
+        {
+            return;
+        }
+
+        EffectPlaylists.Remove(SelectedEffectPlaylist);
+        SelectedEffectPlaylist = EffectPlaylists.FirstOrDefault();
+        Save();
+    }
+
+    private void DeleteSelectedMusicTrack()
+    {
+        if (SelectedMusicPlaylist is null || SelectedMusicTrack is null)
+        {
+            return;
+        }
+
+        var removed = SelectedMusicTrack;
+        SelectedMusicPlaylist.Tracks.Remove(removed);
+        if (CurrentTrack?.Id == removed.Id)
+        {
+            StopAll();
+            CurrentTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
+        }
+
+        SelectedMusicTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
+        OnPropertyChanged(nameof(MusicTracks));
+        Save();
+    }
+
+    private void DeleteSelectedEffectTrack()
+    {
+        if (SelectedEffectPlaylist is null || SelectedEffectTrack is null)
+        {
+            return;
+        }
+
+        SelectedEffectPlaylist.Effects.Remove(SelectedEffectTrack);
+        SelectedEffectTrack = SelectedEffectPlaylist.Effects.FirstOrDefault();
+        OnPropertyChanged(nameof(EffectTracks));
+        Save();
+    }
+
+    private void MoveSelectedPlaylist<T>(ObservableCollection<T> collection, T? selected, int delta)
+        where T : class
+    {
+        if (selected is null)
+        {
+            return;
+        }
+
+        var index = collection.IndexOf(selected);
+        var targetIndex = index + delta;
+        if (index < 0 || targetIndex < 0 || targetIndex >= collection.Count)
+        {
+            return;
+        }
+
+        collection.Move(index, targetIndex);
+        Save();
+        NotifyCommandStates();
+    }
+
+    private void MoveSelectedTrack(List<Track>? tracks, Track? selected, int delta, string propertyName)
+    {
+        if (tracks is null || selected is null)
+        {
+            return;
+        }
+
+        var index = tracks.FindIndex(track => track.Id == selected.Id);
+        var targetIndex = index + delta;
+        if (index < 0 || targetIndex < 0 || targetIndex >= tracks.Count)
+        {
+            return;
+        }
+
+        tracks.RemoveAt(index);
+        tracks.Insert(targetIndex, selected);
+        OnPropertyChanged(propertyName);
+        Save();
+        NotifyCommandStates();
+    }
+
+    private static bool CanMove<T>(IList<T>? collection, T? selected, int delta)
+        where T : class
+    {
+        if (collection is null || selected is null)
+        {
+            return false;
+        }
+
+        var index = collection.IndexOf(selected);
+        var targetIndex = index + delta;
+        return index >= 0 && targetIndex >= 0 && targetIndex < collection.Count;
+    }
+
+    private void PlayMusicTrack(Playlist? playlist, Track? track)
+    {
+        if (playlist is null || track is null)
+        {
+            return;
+        }
+
+        try
+        {
+            CurrentTrack = track;
+            _playbackMusicPlaylist = playlist;
+            _audio.PlayMusic(track, CurrentMusicOutputVolume());
+            IsPlaying = true;
+            ErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            IsPlaying = false;
+            ErrorMessage = $"Failed to play file: {track.Title}. {ex.Message}";
+        }
+    }
+
+    private void PlayEffect(Track? track)
+    {
+        if (track is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _audio.PlayEffect(track, track.OutputVolume(EffectsVolume));
+            ErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to play effect: {track.Title}. {ex.Message}";
+        }
+    }
+
+    private void PlayPause()
+    {
+        if (IsPlaying)
+        {
+            _audio.PauseMusic();
+            IsPlaying = false;
+            return;
+        }
+
+        if (_audio.IsMusicPlaying)
+        {
+            _audio.ResumeMusic();
+            IsPlaying = true;
+            return;
+        }
+
+        var playlist = _playbackMusicPlaylist ?? SelectedMusicPlaylist;
+        var track = CurrentTrack ?? playlist?.Tracks.FirstOrDefault();
+        PlayMusicTrack(playlist, track);
+    }
+
+    private void StopAll()
+    {
+        _audio.StopAll();
+        IsPlaying = false;
+    }
+
+    private void StopEffects()
+    {
+        _audio.StopEffects();
+    }
+
+    private void NextTrackFromPlaybackEnd()
+    {
+        IsPlaying = false;
+        NextTrack();
+    }
+
+    private void NextTrack()
+    {
+        var playlist = _playbackMusicPlaylist ?? SelectedMusicPlaylist;
+        if (playlist is null || playlist.Tracks.Count == 0)
+        {
+            return;
+        }
+
+        if (ShuffleEnabled)
+        {
+            var next = playlist.Tracks[_random.Next(playlist.Tracks.Count)];
+            PlayMusicTrack(playlist, next);
+            return;
+        }
+
+        var currentIndex = CurrentTrack is null ? -1 : playlist.Tracks.FindIndex(track => track.Id == CurrentTrack.Id);
+        var nextIndex = currentIndex + 1;
+        if (nextIndex < playlist.Tracks.Count)
+        {
+            PlayMusicTrack(playlist, playlist.Tracks[nextIndex]);
+            return;
+        }
+
+        switch (RepeatMode)
+        {
+            case RepeatMode.One:
+                PlayMusicTrack(playlist, CurrentTrack);
+                break;
+            case RepeatMode.All:
+                PlayMusicTrack(playlist, playlist.Tracks[0]);
+                break;
+            default:
+                StopAll();
+                break;
+        }
+    }
+
+    private void PreviousTrack()
+    {
+        var playlist = _playbackMusicPlaylist ?? SelectedMusicPlaylist;
+        if (playlist is null || playlist.Tracks.Count == 0)
+        {
+            return;
+        }
+
+        var currentIndex = CurrentTrack is null ? -1 : playlist.Tracks.FindIndex(track => track.Id == CurrentTrack.Id);
+        var previousIndex = currentIndex - 1;
+        if (previousIndex >= 0)
+        {
+            PlayMusicTrack(playlist, playlist.Tracks[previousIndex]);
+            return;
+        }
+
+        if (RepeatMode == RepeatMode.All)
+        {
+            PlayMusicTrack(playlist, playlist.Tracks[^1]);
+        }
+        else
+        {
+            PlayMusicTrack(playlist, playlist.Tracks[0]);
+        }
+    }
+
+    private void BeginBindSelectedMusic()
+    {
+        if (SelectedMusicPlaylist is null || SelectedMusicTrack is null)
+        {
+            return;
+        }
+
+        CaptureAction = HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, SelectedMusicTrack.Id);
+    }
+
+    private void BeginBindSelectedEffect()
+    {
+        if (SelectedEffectPlaylist is null || SelectedEffectTrack is null)
+        {
+            return;
+        }
+
+        CaptureAction = HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id);
+    }
+
+    private void CancelHotkeyCapture()
+    {
+        CaptureAction = null;
+    }
+
+    private void ClearSelectedMusicBinding()
+    {
+        if (SelectedMusicPlaylist is null || SelectedMusicTrack is null)
+        {
+            return;
+        }
+
+        _state.Hotkeys.Clear(HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, SelectedMusicTrack.Id));
+        Save();
+    }
+
+    private void ClearSelectedEffectBinding()
+    {
+        if (SelectedEffectPlaylist is null || SelectedEffectTrack is null)
+        {
+            return;
+        }
+
+        _state.Hotkeys.Clear(HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id));
+        Save();
+    }
+
+    private void ExecuteHotkeyAction(HotkeyAction action)
+    {
+        switch (action.Kind)
+        {
+            case HotkeyActionKind.StopAll:
+                StopAll();
+                break;
+            case HotkeyActionKind.StopEffects:
+                StopEffects();
+                break;
+            case HotkeyActionKind.PlayPause:
+                PlayPause();
+                break;
+            case HotkeyActionKind.MusicVolumeUp:
+                MusicVolume += 0.05;
+                break;
+            case HotkeyActionKind.MusicVolumeDown:
+                MusicVolume -= 0.05;
+                break;
+            case HotkeyActionKind.EffectsVolumeUp:
+                EffectsVolume += 0.05;
+                break;
+            case HotkeyActionKind.EffectsVolumeDown:
+                EffectsVolume -= 0.05;
+                break;
+            case HotkeyActionKind.PlayMusicTrack:
+                var musicPlaylist = MusicPlaylists.FirstOrDefault(playlist => playlist.Id == action.PlaylistId);
+                var musicTrack = musicPlaylist?.Tracks.FirstOrDefault(track => track.Id == action.TrackId);
+                PlayMusicTrack(musicPlaylist, musicTrack);
+                break;
+            case HotkeyActionKind.PlayEffect:
+                var effectPlaylist = EffectPlaylists.FirstOrDefault(playlist => playlist.Id == action.PlaylistId);
+                var effectTrack = effectPlaylist?.Effects.FirstOrDefault(track => track.Id == action.TrackId);
+                PlayEffect(effectTrack);
+                break;
+        }
+    }
+
+    private void ApplyMusicVolume()
+    {
+        _audio.SetMusicVolume(CurrentMusicOutputVolume());
+    }
+
+    private double CurrentMusicOutputVolume()
+    {
+        var ducking = _audio.ActiveEffectCount > 0 ? DuckingAmount : 1.0;
+        return Track.OutputVolume(
+            MusicVolume,
+            CurrentTrack?.VolumeMultiplier ?? Track.DefaultVolumeMultiplier,
+            ducking);
+    }
+
+    private void Save()
+    {
+        _state.MusicPlaylists = MusicPlaylists.ToList();
+        _state.EffectPlaylists = EffectPlaylists.ToList();
+        _state.EnsureDefaults();
+        _storage.Save(_state);
+    }
+
+    private void UpdateThemeBrushes()
+    {
+        var resolved = ThemeRenderer.Resolve(_state.Theme);
+        BackgroundBrush = CreateBackgroundBrush(resolved);
+        PanelBrush = ToBrush(resolved.Panel);
+        PanelAltBrush = ToBrush(resolved.PanelAlt);
+        CardBrush = ToBrush(resolved.Card);
+        CurrentCardBrush = ToBrush(resolved.CardCurrent);
+        AccentBrush = ToBrush(resolved.Accent);
+        DangerBrush = ToBrush(resolved.Danger);
+        TextPrimaryBrush = ToBrush(resolved.TextPrimary);
+        TextSecondaryBrush = ToBrush(resolved.TextSecondary);
+    }
+
+    private IBrush CreateBackgroundBrush(ResolvedTheme resolved)
+    {
+        var imagePath = _state.Theme.Background.ImageOriginalPath;
+        if (_state.Theme.Background.Mode == BackgroundMode.Image &&
+            !string.IsNullOrWhiteSpace(imagePath) &&
+            File.Exists(imagePath))
+        {
+            try
+            {
+                return new ImageBrush(new Bitmap(imagePath))
+                {
+                    Stretch = Stretch.UniformToFill,
+                    Opacity = _state.Theme.Background.Opacity
+                };
+            }
+            catch
+            {
+                ErrorMessage = $"Failed to load background image: {imagePath}";
+            }
+        }
+
+        return ToBrush(resolved.BackgroundBottom);
+    }
+
+    private static SolidColorBrush ToBrush(ThemeColor color)
+    {
+        static byte Byte(double value) => (byte)Math.Round(ThemeColor.ClampUnit(value) * 255);
+        return new SolidColorBrush(Color.FromArgb(Byte(color.Alpha), Byte(color.Red), Byte(color.Green), Byte(color.Blue)));
+    }
+
+    private void RenamePlaylist(EffectPlaylist playlist, string value, string fallback)
+    {
+        playlist.Name = Track.NormalizedTitle(value, fallback);
+        Save();
+        OnPropertyChanged(nameof(SelectedEffectPlaylistName));
+    }
+
+    private void RenamePlaylist(Playlist playlist, string value, string fallback)
+    {
+        playlist.Name = Track.NormalizedTitle(value, fallback);
+        Save();
+        OnPropertyChanged(nameof(SelectedMusicPlaylistName));
+    }
+
+    private void RenameTrack(Track track, string value)
+    {
+        track.Title = Track.NormalizedTitle(value, track.Title);
+        Save();
+    }
+
+    private static string NextPlaylistName(string prefix, IEnumerable<string> existingNames)
+    {
+        var existing = existingNames.ToHashSet(StringComparer.CurrentCultureIgnoreCase);
+        var index = 1;
+        while (existing.Contains($"{prefix} {index}"))
+        {
+            index++;
+        }
+
+        return $"{prefix} {index}";
+    }
+
+    private void NotifyCommandStates()
+    {
+        DeleteMusicPlaylistCommand?.NotifyCanExecuteChanged();
+        DeleteEffectPlaylistCommand?.NotifyCanExecuteChanged();
+        MoveMusicPlaylistUpCommand?.NotifyCanExecuteChanged();
+        MoveMusicPlaylistDownCommand?.NotifyCanExecuteChanged();
+        MoveEffectPlaylistUpCommand?.NotifyCanExecuteChanged();
+        MoveEffectPlaylistDownCommand?.NotifyCanExecuteChanged();
+        PlaySelectedMusicCommand?.NotifyCanExecuteChanged();
+        DeleteMusicTrackCommand?.NotifyCanExecuteChanged();
+        DeleteEffectTrackCommand?.NotifyCanExecuteChanged();
+        MoveMusicTrackUpCommand?.NotifyCanExecuteChanged();
+        MoveMusicTrackDownCommand?.NotifyCanExecuteChanged();
+        MoveEffectTrackUpCommand?.NotifyCanExecuteChanged();
+        MoveEffectTrackDownCommand?.NotifyCanExecuteChanged();
+        BindSelectedMusicCommand?.NotifyCanExecuteChanged();
+        BindSelectedEffectCommand?.NotifyCanExecuteChanged();
+        CancelHotkeyCaptureCommand?.NotifyCanExecuteChanged();
+        ClearSelectedMusicBindingCommand?.NotifyCanExecuteChanged();
+        ClearSelectedEffectBindingCommand?.NotifyCanExecuteChanged();
+    }
+}

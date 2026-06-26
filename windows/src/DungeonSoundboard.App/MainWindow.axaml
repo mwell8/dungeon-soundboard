@@ -1,0 +1,265 @@
+<Window
+    x:Class="DungeonSoundboard.App.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Dungeon Soundboard"
+    Width="1220"
+    Height="780"
+    MinWidth="1040"
+    MinHeight="680"
+    Background="{Binding BackgroundBrush}"
+    KeyDown="OnKeyDown">
+  <Window.Styles>
+    <Style Selector="TextBlock">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{Binding TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{Binding TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.sectionTitle">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Padding" Value="11,5" />
+      <Setter Property="Margin" Value="2" />
+    </Style>
+    <Style Selector="Button.compact">
+      <Setter Property="MinWidth" Value="30" />
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Padding" Value="7,3" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{Binding AccentBrush}" />
+      <Setter Property="Foreground" Value="#11151B" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Foreground" Value="{Binding DangerBrush}" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Margin" Value="2" />
+    </Style>
+    <Style Selector="ListBox">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="14" RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0" Background="{Binding PanelAltBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Dungeon Soundboard" FontSize="20" FontWeight="SemiBold" />
+          <TextBlock Classes="caption" Text="{Binding CaptureStatus}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0">
+          <TextBlock Classes="caption" Text="Theme" VerticalAlignment="Center" />
+          <ComboBox Width="178" ItemsSource="{Binding ThemePresetOptions}" SelectedItem="{Binding SelectedThemePreset}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+
+        <Button Grid.Column="2" Content="Background" Command="{Binding ChooseBackgroundImageCommand}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="3" Text="{Binding StatusMessage}" Classes="caption" Width="260" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="12,0,0,0" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="292,10,*" DragDrop.AllowDrop="True">
+      <Border Grid.Column="0" Background="{Binding PanelBrush}" CornerRadius="8" Padding="12">
+        <Grid RowDefinitions="Auto,*,10,Auto,*">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,8">
+            <StackPanel>
+              <TextBlock Text="Music Playlists" FontWeight="SemiBold" />
+              <TextBlock Classes="caption" Text="Choose the playlist used by the music deck" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="compact primary" Content="+" Command="{Binding CreateMusicPlaylistCommand}" />
+            <Button Grid.Column="2" Classes="compact danger" Content="-" Command="{Binding DeleteMusicPlaylistCommand}" />
+            <Button Grid.Column="3" Classes="compact" Content="Up" Command="{Binding MoveMusicPlaylistUpCommand}" />
+            <Button Grid.Column="4" Classes="compact" Content="Down" Command="{Binding MoveMusicPlaylistDownCommand}" />
+          </Grid>
+
+          <ListBox Grid.Row="1" ItemsSource="{Binding MusicPlaylists}" SelectedItem="{Binding SelectedMusicPlaylist}">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="6" Padding="10,8" Margin="0,2">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Tracks.Count}" Margin="10,0,0,0" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,8,0,8">
+            <StackPanel>
+              <TextBlock Text="SFX Playlists" FontWeight="SemiBold" />
+              <TextBlock Classes="caption" Text="Concurrent effects and stingers" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="compact primary" Content="+" Command="{Binding CreateEffectPlaylistCommand}" />
+            <Button Grid.Column="2" Classes="compact danger" Content="-" Command="{Binding DeleteEffectPlaylistCommand}" />
+            <Button Grid.Column="3" Classes="compact" Content="Up" Command="{Binding MoveEffectPlaylistUpCommand}" />
+            <Button Grid.Column="4" Classes="compact" Content="Down" Command="{Binding MoveEffectPlaylistDownCommand}" />
+          </Grid>
+
+          <ListBox Grid.Row="4" ItemsSource="{Binding EffectPlaylists}" SelectedItem="{Binding SelectedEffectPlaylist}">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="6" Padding="10,8" Margin="0,2">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Effects.Count}" Margin="10,0,0,0" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{Binding AccentBrush}" Opacity="0.42" />
+
+      <Grid Grid.Column="2" RowDefinitions="*,10,*">
+        <Border Grid.Row="0" Background="{Binding PanelBrush}" CornerRadius="8" Padding="12" DragDrop.AllowDrop="True" DragDrop.DragOver="OnMusicDragOver" DragDrop.Drop="OnMusicDrop">
+          <Grid RowDefinitions="Auto,*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,10">
+              <StackPanel>
+                <TextBox Text="{Binding SelectedMusicPlaylistName}" PlaceholderText="Music playlist name" FontSize="17" FontWeight="SemiBold" />
+                <TextBlock Classes="caption" Text="Drop audio files here or add them from disk" Margin="4,0,0,0" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="Add Files" Command="{Binding AddMusicFilesCommand}" />
+              <Button Grid.Column="2" Content="Add Folder" Command="{Binding AddMusicFolderCommand}" />
+              <Button Grid.Column="3" Classes="primary" Content="Play" Command="{Binding PlaySelectedMusicCommand}" />
+              <Button Grid.Column="4" Classes="danger" Content="Delete" Command="{Binding DeleteMusicTrackCommand}" />
+            </Grid>
+
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding MusicTracks}"
+                     SelectedItem="{Binding SelectedMusicTrack}"
+                     DoubleTapped="OnMusicTrackDoubleTapped"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Border Width="268" MinHeight="48" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="7" Padding="10,8" Margin="4">
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1" Classes="caption" Text="{Binding VolumeMultiplier, StringFormat={}{0:P0}}" Margin="10,0,0,0" />
+                      <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Border Grid.Row="2" Background="{Binding PanelAltBrush}" CornerRadius="7" Padding="8" Margin="0,10,0,0">
+              <Grid ColumnDefinitions="*,150,Auto,Auto,Auto,Auto,Auto">
+                <TextBox Text="{Binding SelectedMusicTrackTitle}" PlaceholderText="Selected track title" />
+                <Slider Grid.Column="1" Minimum="0" Maximum="2" Value="{Binding SelectedMusicTrackVolume}" VerticalAlignment="Center" Margin="8,0" />
+                <Button Grid.Column="2" Content="Bind" Command="{Binding BindSelectedMusicCommand}" />
+                <Button Grid.Column="3" Content="Clear" Command="{Binding ClearSelectedMusicBindingCommand}" />
+                <Button Grid.Column="4" Classes="compact" Content="Up" Command="{Binding MoveMusicTrackUpCommand}" />
+                <Button Grid.Column="5" Classes="compact" Content="Down" Command="{Binding MoveMusicTrackDownCommand}" />
+                <Button Grid.Column="6" Content="Cancel Bind" Command="{Binding CancelHotkeyCaptureCommand}" />
+              </Grid>
+            </Border>
+          </Grid>
+        </Border>
+
+        <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="{Binding AccentBrush}" Opacity="0.42" />
+
+        <Border Grid.Row="2" Background="{Binding PanelBrush}" CornerRadius="8" Padding="12" DragDrop.AllowDrop="True" DragDrop.DragOver="OnEffectDragOver" DragDrop.Drop="OnEffectDrop">
+          <Grid RowDefinitions="Auto,*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,10">
+              <StackPanel>
+                <TextBox Text="{Binding SelectedEffectPlaylistName}" PlaceholderText="SFX playlist name" FontSize="17" FontWeight="SemiBold" />
+                <TextBlock Classes="caption" Text="Effects play over music and trigger ducking" Margin="4,0,0,0" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="Add Files" Command="{Binding AddEffectFilesCommand}" />
+              <Button Grid.Column="2" Content="Add Folder" Command="{Binding AddEffectFolderCommand}" />
+              <Button Grid.Column="3" Classes="danger" Content="Delete" Command="{Binding DeleteEffectTrackCommand}" />
+            </Grid>
+
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding EffectTracks}"
+                     SelectedItem="{Binding SelectedEffectTrack}"
+                     DoubleTapped="OnEffectTrackDoubleTapped"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Border Width="268" MinHeight="48" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="7" Padding="10,8" Margin="4">
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1" Classes="caption" Text="{Binding VolumeMultiplier, StringFormat={}{0:P0}}" Margin="10,0,0,0" />
+                      <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Border Grid.Row="2" Background="{Binding PanelAltBrush}" CornerRadius="7" Padding="8" Margin="0,10,0,0">
+              <Grid ColumnDefinitions="*,150,Auto,Auto,Auto,Auto,Auto">
+                <TextBox Text="{Binding SelectedEffectTrackTitle}" PlaceholderText="Selected effect title" />
+                <Slider Grid.Column="1" Minimum="0" Maximum="2" Value="{Binding SelectedEffectTrackVolume}" VerticalAlignment="Center" Margin="8,0" />
+                <Button Grid.Column="2" Content="Bind" Command="{Binding BindSelectedEffectCommand}" />
+                <Button Grid.Column="3" Content="Clear" Command="{Binding ClearSelectedEffectBindingCommand}" />
+                <Button Grid.Column="4" Classes="compact" Content="Up" Command="{Binding MoveEffectTrackUpCommand}" />
+                <Button Grid.Column="5" Classes="compact" Content="Down" Command="{Binding MoveEffectTrackDownCommand}" />
+                <Button Grid.Column="6" Content="Cancel Bind" Command="{Binding CancelHotkeyCaptureCommand}" />
+              </Grid>
+            </Border>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="2" Background="{Binding PanelAltBrush}" CornerRadius="8" Padding="12" Margin="0,10,0,0">
+      <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+          <Button Classes="compact" Content="Prev" Command="{Binding PreviousTrackCommand}" />
+          <Button Classes="primary" Content="Play / Pause" Command="{Binding PlayPauseCommand}" />
+          <Button Classes="compact" Content="Next" Command="{Binding NextTrackCommand}" />
+          <Button Content="Stop SFX" Command="{Binding StopEffectsCommand}" />
+          <Button Classes="danger" Content="Stop All" Command="{Binding StopAllCommand}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+          <CheckBox Content="Shuffle" IsChecked="{Binding ShuffleEnabled}" VerticalAlignment="Center" />
+          <ComboBox Width="120" ItemsSource="{Binding RepeatModeOptions}" SelectedItem="{Binding RepeatMode}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="6" Width="280" Margin="16,0,0,0">
+          <TextBlock Text="{Binding CurrentTrackTitle}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+          <TextBlock Classes="caption" Text="Now playing" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Music" VerticalAlignment="Center" Margin="2,8,8,0" />
+        <Slider Grid.Row="1" Grid.Column="1" Width="180" Minimum="0" Maximum="1" Value="{Binding MusicVolume}" Margin="0,8,0,0" />
+        <TextBlock Grid.Row="1" Grid.Column="2" Text="SFX" VerticalAlignment="Center" Margin="16,8,8,0" />
+        <Slider Grid.Row="1" Grid.Column="3" Width="180" Minimum="0" Maximum="1" Value="{Binding EffectsVolume}" Margin="0,8,0,0" />
+        <TextBlock Grid.Row="1" Grid.Column="4" Text="Ducking" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="16,8,8,0" />
+        <Slider Grid.Row="1" Grid.Column="5" Width="190" Minimum="0.2" Maximum="1" Value="{Binding DuckingAmount}" Margin="0,8,0,0" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

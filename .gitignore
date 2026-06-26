@@ -13,6 +13,12 @@ build/
 dist/
 Release/
 
+# .NET / Windows port
+windows/**/bin/
+windows/**/obj/
+windows/publish/
+windows/TestResults/
+
 # User-specific Xcode data
 xcuserdata/
 *.xcuserstate

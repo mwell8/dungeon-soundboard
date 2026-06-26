@@ -1,4 +1,10 @@
-# Dungeon Soundboard (macOS)
+# Dungeon Soundboard
+
+Desktop audio app for tabletop sessions. The original client is macOS SwiftUI; the repository also contains a separate Windows port under `windows/`.
+
+Windows build/run notes are in [README-Windows.md](./README-Windows.md).
+
+## macOS
 
 Desktop audio app for tabletop sessions: play background music continuously and trigger SFX on top without interrupting the main track.
 
