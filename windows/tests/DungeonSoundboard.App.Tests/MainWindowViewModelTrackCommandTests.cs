@@ -273,11 +273,13 @@ public sealed class MainWindowViewModelTrackCommandTests
 
         Assert.Equal("SFX idle", viewModel.EffectsPlaybackStatus);
         Assert.Equal("Ducking off", viewModel.DuckingStatus);
+        Assert.False(viewModel.StopEffectsCommand.CanExecute(null));
 
         viewModel.PlayEffectCommand.Execute(effect);
 
         Assert.Equal("1 SFX active", viewModel.EffectsPlaybackStatus);
         Assert.Equal("Ducking active", viewModel.DuckingStatus);
+        Assert.True(viewModel.StopEffectsCommand.CanExecute(null));
         Assert.Contains(nameof(MainWindowViewModel.EffectsPlaybackStatus), changedProperties);
         Assert.Contains(nameof(MainWindowViewModel.DuckingStatus), changedProperties);
 
@@ -286,6 +288,7 @@ public sealed class MainWindowViewModelTrackCommandTests
 
         Assert.Equal("SFX idle", viewModel.EffectsPlaybackStatus);
         Assert.Equal("Ducking off", viewModel.DuckingStatus);
+        Assert.False(viewModel.StopEffectsCommand.CanExecute(null));
         Assert.Contains(nameof(MainWindowViewModel.EffectsPlaybackStatus), changedProperties);
         Assert.Contains(nameof(MainWindowViewModel.DuckingStatus), changedProperties);
     }

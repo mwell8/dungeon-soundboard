@@ -109,7 +109,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         PlayEffectTrackTileCommand = new RelayCommand<TrackTileViewModel>(PlayEffectTrackTile);
         PlayPauseCommand = new RelayCommand(PlayPause);
         StopAllCommand = new RelayCommand(StopAll);
-        StopEffectsCommand = new RelayCommand(StopEffects);
+        StopEffectsCommand = new RelayCommand(StopEffects, () => _audio.ActiveEffectCount > 0);
         NextTrackCommand = new RelayCommand(NextTrack);
         PreviousTrackCommand = new RelayCommand(PreviousTrack);
         DeleteMusicTrackCommand = new RelayCommand(DeleteSelectedMusicTrack, () => SelectedMusicTrack is not null);
@@ -1327,6 +1327,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(EffectsPlaybackStatus));
         OnPropertyChanged(nameof(DuckingStatus));
+        StopEffectsCommand.NotifyCanExecuteChanged();
     }
 
     private void SetMusicPaused(bool value)
