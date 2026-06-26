@@ -461,7 +461,7 @@
       <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
           <Button Classes="compact" Content="Prev" Command="{Binding PreviousTrackCommand}" />
-          <Button Classes="primary" Content="Play / Pause" Command="{Binding PlayPauseCommand}" />
+          <Button Classes="primary" Width="82" Content="{Binding PlayPauseButtonText}" Command="{Binding PlayPauseCommand}" />
           <Button Classes="compact" Content="Next" Command="{Binding NextTrackCommand}" />
           <Button Content="Stop SFX" Command="{Binding StopEffectsCommand}" />
           <Button Classes="danger" Content="Stop All" Command="{Binding StopAllCommand}" />

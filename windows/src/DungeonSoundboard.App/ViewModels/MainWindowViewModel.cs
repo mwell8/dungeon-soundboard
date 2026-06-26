@@ -24,6 +24,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private Track? _currentTrack;
     private Playlist? _playbackMusicPlaylist;
     private bool _isPlaying;
+    private bool _isMusicPaused;
     private string? _errorMessage;
     private string _lastImportMessage = "";
     private HotkeyAction? _captureAction;
@@ -423,6 +424,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public string PlaybackStatus => IsPlaying ? "Playing" : "Paused / stopped";
 
+    public string PlayPauseButtonText => IsPlaying ? "Pause" : _isMusicPaused ? "Resume" : "Play";
+
     public string DataDirectory => _storage.DataDirectory;
 
     public string BackgroundImagePath => string.IsNullOrWhiteSpace(_state.Theme.Background.ImageOriginalPath)
@@ -553,6 +556,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _isPlaying, value))
             {
                 OnPropertyChanged(nameof(PlaybackStatus));
+                OnPropertyChanged(nameof(PlayPauseButtonText));
             }
         }
     }
@@ -1175,11 +1179,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             CurrentTrack = track;
             _playbackMusicPlaylist = playlist;
             _audio.PlayMusic(track, CurrentMusicOutputVolume());
+            SetMusicPaused(false);
             IsPlaying = true;
             ErrorMessage = null;
         }
         catch (Exception ex)
         {
+            SetMusicPaused(false);
             IsPlaying = false;
             ErrorMessage = $"Failed to play file: {track.Title}. {ex.Message}";
         }
@@ -1252,13 +1258,23 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (IsPlaying)
         {
             _audio.PauseMusic();
+            SetMusicPaused(true);
             IsPlaying = false;
+            return;
+        }
+
+        if (_isMusicPaused)
+        {
+            _audio.ResumeMusic();
+            SetMusicPaused(false);
+            IsPlaying = true;
             return;
         }
 
         if (_audio.IsMusicPlaying)
         {
             _audio.ResumeMusic();
+            SetMusicPaused(false);
             IsPlaying = true;
             return;
         }
@@ -1271,6 +1287,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void StopAll()
     {
         _audio.StopAll();
+        SetMusicPaused(false);
         IsPlaying = false;
     }
 
@@ -1279,8 +1296,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _audio.StopEffects();
     }
 
+    private void SetMusicPaused(bool value)
+    {
+        if (_isMusicPaused == value)
+        {
+            return;
+        }
+
+        _isMusicPaused = value;
+        OnPropertyChanged(nameof(PlayPauseButtonText));
+    }
+
     private void NextTrackFromPlaybackEnd()
     {
+        SetMusicPaused(false);
         IsPlaying = false;
         NextTrack();
     }

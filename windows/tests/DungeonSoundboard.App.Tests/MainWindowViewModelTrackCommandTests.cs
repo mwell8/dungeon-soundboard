@@ -158,6 +158,37 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void PlayPauseButtonTextReflectsTransportState()
+    {
+        var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [track]);
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")), audio);
+
+        Assert.Equal("Play", viewModel.PlayPauseButtonText);
+
+        viewModel.PlayMusicTrackCommand.Execute(track);
+
+        Assert.Equal("Pause", viewModel.PlayPauseButtonText);
+        Assert.Equal(1, audio.PlayMusicCount);
+
+        viewModel.PlayPauseCommand.Execute(null);
+
+        Assert.Equal("Resume", viewModel.PlayPauseButtonText);
+        Assert.Equal(1, audio.PauseCount);
+
+        viewModel.PlayPauseCommand.Execute(null);
+
+        Assert.Equal("Pause", viewModel.PlayPauseButtonText);
+        Assert.Equal(1, audio.ResumeCount);
+        Assert.Equal(1, audio.PlayMusicCount);
+
+        viewModel.StopAllCommand.Execute(null);
+
+        Assert.Equal("Play", viewModel.PlayPauseButtonText);
+    }
+
+    [Fact]
     public void PlayEffectTrackTileSelectsAndStartsEffectWithoutStoppingMusic()
     {
         var music = new Track("Music", "C:\\audio\\music.mp3", TrackRole.Music);
@@ -352,6 +383,9 @@ public sealed class MainWindowViewModelTrackCommandTests
         public bool IsMusicPlaying { get; private set; }
         public Track? LastMusicTrack { get; private set; }
         public Track? LastEffectTrack { get; private set; }
+        public int PlayMusicCount { get; private set; }
+        public int PauseCount { get; private set; }
+        public int ResumeCount { get; private set; }
 
         public void Dispose()
         {
@@ -361,16 +395,19 @@ public sealed class MainWindowViewModelTrackCommandTests
         {
             IsMusicPlaying = true;
             LastMusicTrack = track;
+            PlayMusicCount++;
         }
 
         public void PauseMusic()
         {
             IsMusicPlaying = false;
+            PauseCount++;
         }
 
         public void ResumeMusic()
         {
             IsMusicPlaying = true;
+            ResumeCount++;
         }
 
         public void StopMusic()
