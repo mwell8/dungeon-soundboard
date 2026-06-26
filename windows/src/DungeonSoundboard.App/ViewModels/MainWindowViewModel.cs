@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -28,6 +29,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private HotkeyAction? _captureAction;
     private ThemePresetOption? _selectedThemePreset;
     private IBrush _backgroundBrush = Brushes.Black;
+    private IBrush _backgroundOverlayBrush = Brushes.Transparent;
     private IBrush _panelBrush = Brushes.DimGray;
     private IBrush _panelAltBrush = Brushes.Gray;
     private IBrush _cardBrush = Brushes.Gray;
@@ -68,6 +70,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             new ThemePresetOption(ThemePreset.ForestMist, "Forest Mist")
         ];
         RepeatModeOptions = [RepeatMode.Off, RepeatMode.One, RepeatMode.All];
+        BackgroundLayoutModeOptions =
+        [
+            BackgroundLayoutMode.Fill,
+            BackgroundLayoutMode.Fit,
+            BackgroundLayoutMode.Center,
+            BackgroundLayoutMode.Tile
+        ];
         SelectedThemePreset = ThemePresetOptions.FirstOrDefault(option => option.Preset == _state.Theme.Preset)
             ?? ThemePresetOptions[0];
         UpdateThemeBrushes();
@@ -116,6 +125,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ClearMusicTrackItemBindingCommand = new RelayCommand<Track>(ClearMusicTrackBinding);
         ClearEffectTrackItemBindingCommand = new RelayCommand<Track>(ClearEffectTrackBinding);
         ChooseBackgroundImageCommand = new AsyncRelayCommand(ChooseBackgroundImageAsync);
+        ClearBackgroundImageCommand = new RelayCommand(ClearBackgroundImage, () => HasBackgroundImage);
     }
 
     public IFileDialogService? FileDialogService { get; set; }
@@ -124,6 +134,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public ObservableCollection<EffectPlaylist> EffectPlaylists { get; }
     public IReadOnlyList<ThemePresetOption> ThemePresetOptions { get; }
     public IReadOnlyList<RepeatMode> RepeatModeOptions { get; }
+    public IReadOnlyList<BackgroundLayoutMode> BackgroundLayoutModeOptions { get; }
 
     public IRelayCommand CreateMusicPlaylistCommand { get; }
     public IRelayCommand CreateEffectPlaylistCommand { get; }
@@ -169,6 +180,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand<Track> ClearMusicTrackItemBindingCommand { get; }
     public IRelayCommand<Track> ClearEffectTrackItemBindingCommand { get; }
     public IAsyncRelayCommand ChooseBackgroundImageCommand { get; }
+    public IRelayCommand ClearBackgroundImageCommand { get; }
 
     public Playlist? SelectedMusicPlaylist
     {
@@ -367,6 +379,62 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ? "Image background"
         : "Theme preset background";
 
+    public bool HasBackgroundImage => _state.Theme.Background.Mode == BackgroundMode.Image
+        && !string.IsNullOrWhiteSpace(_state.Theme.Background.ImageOriginalPath);
+
+    public BackgroundLayoutMode BackgroundLayoutMode
+    {
+        get => _state.Theme.Background.LayoutMode;
+        set
+        {
+            if (_state.Theme.Background.LayoutMode == value)
+            {
+                return;
+            }
+
+            _state.Theme.Background.LayoutMode = value;
+            OnPropertyChanged();
+            UpdateThemeBrushes();
+            Save();
+        }
+    }
+
+    public double BackgroundOpacity
+    {
+        get => _state.Theme.Background.Opacity;
+        set
+        {
+            var clamped = ThemeColor.ClampUnit(value);
+            if (Math.Abs(_state.Theme.Background.Opacity - clamped) < 0.0001)
+            {
+                return;
+            }
+
+            _state.Theme.Background.Opacity = clamped;
+            OnPropertyChanged();
+            UpdateThemeBrushes();
+            Save();
+        }
+    }
+
+    public double BackgroundDimOverlay
+    {
+        get => _state.Theme.Background.DimOverlay;
+        set
+        {
+            var clamped = Clamp(value, 0.15, 0.65);
+            if (Math.Abs(_state.Theme.Background.DimOverlay - clamped) < 0.0001)
+            {
+                return;
+            }
+
+            _state.Theme.Background.DimOverlay = clamped;
+            OnPropertyChanged();
+            UpdateThemeBrushes();
+            Save();
+        }
+    }
+
     public string SelectedMusicHotkeyText => SelectedMusicPlaylist is null || SelectedMusicTrack is null
         ? "Select track"
         : HotkeyTextFor(HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, SelectedMusicTrack.Id));
@@ -534,7 +602,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            var currentBackground = CloneBackground(_state.Theme.Background);
             _state.Theme = ThemeRenderer.ThemeFor(value.Preset);
+            _state.Theme.Background = currentBackground;
             UpdateThemeBrushes();
             Save();
         }
@@ -544,6 +614,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         get => _backgroundBrush;
         private set => SetProperty(ref _backgroundBrush, value);
+    }
+
+    public IBrush BackgroundOverlayBrush
+    {
+        get => _backgroundOverlayBrush;
+        private set => SetProperty(ref _backgroundOverlayBrush, value);
     }
 
     public IBrush PanelBrush
@@ -692,8 +768,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _state.Theme.Background.Mode = BackgroundMode.Image;
         _state.Theme.Background.ImageOriginalPath = path;
         UpdateThemeBrushes();
-        OnPropertyChanged(nameof(BackgroundImagePath));
-        OnPropertyChanged(nameof(BackgroundImageStatus));
+        Save();
+    }
+
+    private void ClearBackgroundImage()
+    {
+        _state.Theme.Background.Mode = BackgroundMode.None;
+        _state.Theme.Background.ImageBookmarkData = null;
+        _state.Theme.Background.ImageOriginalPath = null;
+        _state.Theme.Background.BlurRadius = 0;
+        UpdateThemeBrushes();
         Save();
     }
 
@@ -1221,6 +1305,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         var resolved = ThemeRenderer.Resolve(_state.Theme);
         BackgroundBrush = CreateBackgroundBrush(resolved);
+        BackgroundOverlayBrush = CreateBackgroundOverlayBrush();
         PanelBrush = ToBrush(resolved.Panel);
         PanelAltBrush = ToBrush(resolved.PanelAlt);
         CardBrush = ToBrush(resolved.Card);
@@ -1229,8 +1314,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         DangerBrush = ToBrush(resolved.Danger);
         TextPrimaryBrush = ToBrush(resolved.TextPrimary);
         TextSecondaryBrush = ToBrush(resolved.TextSecondary);
-        OnPropertyChanged(nameof(BackgroundImagePath));
-        OnPropertyChanged(nameof(BackgroundImageStatus));
+        NotifyBackgroundChanged();
     }
 
     private IBrush CreateBackgroundBrush(ResolvedTheme resolved)
@@ -1242,11 +1326,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             try
             {
-                return new ImageBrush(new Bitmap(imagePath))
+                var brush = new ImageBrush(new Bitmap(imagePath))
                 {
-                    Stretch = Stretch.UniformToFill,
+                    AlignmentX = AlignmentX.Center,
+                    AlignmentY = AlignmentY.Center,
+                    DestinationRect = _state.Theme.Background.LayoutMode == BackgroundLayoutMode.Tile
+                        ? new RelativeRect(0, 0, 256, 256, RelativeUnit.Absolute)
+                        : RelativeRect.Fill,
+                    Stretch = StretchFor(_state.Theme.Background.LayoutMode),
+                    TileMode = _state.Theme.Background.LayoutMode == BackgroundLayoutMode.Tile
+                        ? TileMode.Tile
+                        : TileMode.None,
                     Opacity = _state.Theme.Background.Opacity
                 };
+                return brush;
             }
             catch
             {
@@ -1257,10 +1350,56 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         return ToBrush(resolved.BackgroundBottom);
     }
 
+    private IBrush CreateBackgroundOverlayBrush()
+    {
+        if (!HasBackgroundImage)
+        {
+            return Brushes.Transparent;
+        }
+
+        return ToBrush(ThemeColor.Black.WithAlpha(_state.Theme.Background.DimOverlay));
+    }
+
+    private static Stretch StretchFor(BackgroundLayoutMode layoutMode)
+    {
+        return layoutMode switch
+        {
+            BackgroundLayoutMode.Fill => Stretch.UniformToFill,
+            BackgroundLayoutMode.Fit => Stretch.Uniform,
+            BackgroundLayoutMode.Center => Stretch.None,
+            BackgroundLayoutMode.Tile => Stretch.None,
+            _ => Stretch.UniformToFill
+        };
+    }
+
     private static SolidColorBrush ToBrush(ThemeColor color)
     {
         static byte Byte(double value) => (byte)Math.Round(ThemeColor.ClampUnit(value) * 255);
         return new SolidColorBrush(Color.FromArgb(Byte(color.Alpha), Byte(color.Red), Byte(color.Green), Byte(color.Blue)));
+    }
+
+    private static BackgroundConfig CloneBackground(BackgroundConfig background)
+    {
+        return new BackgroundConfig
+        {
+            Mode = background.Mode,
+            ImageBookmarkData = background.ImageBookmarkData?.ToArray(),
+            ImageOriginalPath = background.ImageOriginalPath,
+            LayoutMode = background.LayoutMode,
+            Opacity = background.Opacity,
+            DimOverlay = background.DimOverlay,
+            BlurRadius = background.BlurRadius
+        };
+    }
+
+    private static double Clamp(double value, double min, double max)
+    {
+        if (!double.IsFinite(value))
+        {
+            return min;
+        }
+
+        return Math.Min(Math.Max(value, min), max);
     }
 
     private string HotkeyTextFor(HotkeyAction action)
@@ -1304,6 +1443,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SystemHotkeyRows));
         OnPropertyChanged(nameof(SelectedMusicHotkeyText));
         OnPropertyChanged(nameof(SelectedEffectHotkeyText));
+    }
+
+    private void NotifyBackgroundChanged()
+    {
+        OnPropertyChanged(nameof(BackgroundImagePath));
+        OnPropertyChanged(nameof(BackgroundImageStatus));
+        OnPropertyChanged(nameof(HasBackgroundImage));
+        OnPropertyChanged(nameof(BackgroundLayoutMode));
+        OnPropertyChanged(nameof(BackgroundOpacity));
+        OnPropertyChanged(nameof(BackgroundDimOverlay));
+        ClearBackgroundImageCommand?.NotifyCanExecuteChanged();
     }
 
     private void NotifyMusicTracksChanged()

@@ -93,7 +93,7 @@
             <StackPanel Spacing="14" Margin="2,10,8,8">
               <StackPanel Spacing="8">
                 <TextBlock Classes="sectionTitle" Text="Theme" />
-                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="10">
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
                   <TextBlock Classes="fieldLabel" Text="Preset" />
                   <ComboBox Grid.Column="1" Width="220" HorizontalAlignment="Left" ItemsSource="{Binding Main.ThemePresetOptions}" SelectedItem="{Binding Main.SelectedThemePreset}">
                     <ComboBox.ItemTemplate>
@@ -106,8 +106,24 @@
                   <TextBlock Grid.Row="1" Classes="fieldLabel" Text="Background" />
                   <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
                     <Button Classes="primary" Content="Choose Image" Command="{Binding Main.ChooseBackgroundImageCommand}" />
+                    <Button Content="Clear" Command="{Binding Main.ClearBackgroundImageCommand}" />
                     <TextBlock Classes="caption" Text="{Binding Main.BackgroundImageStatus}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Width="360" />
                   </StackPanel>
+
+                  <TextBlock Grid.Row="2" Classes="fieldLabel" Text="Layout" />
+                  <ComboBox Grid.Row="2" Grid.Column="1" Width="160" HorizontalAlignment="Left" ItemsSource="{Binding Main.BackgroundLayoutModeOptions}" SelectedItem="{Binding Main.BackgroundLayoutMode}" IsEnabled="{Binding Main.HasBackgroundImage}" />
+
+                  <TextBlock Grid.Row="3" Classes="fieldLabel" Text="Opacity" />
+                  <Grid Grid.Row="3" Grid.Column="1" ColumnDefinitions="*,54">
+                    <Slider Minimum="0" Maximum="1" Value="{Binding Main.BackgroundOpacity}" IsEnabled="{Binding Main.HasBackgroundImage}" />
+                    <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Main.BackgroundOpacity, StringFormat={}{0:P0}}" TextAlignment="Right" VerticalAlignment="Center" />
+                  </Grid>
+
+                  <TextBlock Grid.Row="4" Classes="fieldLabel" Text="Dim" />
+                  <Grid Grid.Row="4" Grid.Column="1" ColumnDefinitions="*,54">
+                    <Slider Minimum="0.15" Maximum="0.65" Value="{Binding Main.BackgroundDimOverlay}" IsEnabled="{Binding Main.HasBackgroundImage}" />
+                    <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Main.BackgroundDimOverlay, StringFormat={}{0:P0}}" TextAlignment="Right" VerticalAlignment="Center" />
+                  </Grid>
                 </Grid>
               </StackPanel>
 
