@@ -91,12 +91,24 @@ public partial class MainWindow : Window
 
     private void OnMusicTrackTapped(object? sender, TappedEventArgs e)
     {
+        if (IsTileActionSource(e.Source))
+        {
+            e.Handled = true;
+            return;
+        }
+
         ExecuteTrackTileCommand(sender, (viewModel, tile) => viewModel.PlayMusicTrackTileCommand.Execute(tile));
         e.Handled = true;
     }
 
     private void OnEffectTrackTapped(object? sender, TappedEventArgs e)
     {
+        if (IsTileActionSource(e.Source))
+        {
+            e.Handled = true;
+            return;
+        }
+
         ExecuteTrackTileCommand(sender, (viewModel, tile) => viewModel.PlayEffectTrackTileCommand.Execute(tile));
         e.Handled = true;
     }
@@ -192,6 +204,22 @@ public partial class MainWindow : Window
     private static TrackTileViewModel? TrackTileFromSender(object? sender)
     {
         return sender is Control control ? control.DataContext as TrackTileViewModel : null;
+    }
+
+    private static bool IsTileActionSource(object? source)
+    {
+        var current = source as Control;
+        while (current is not null)
+        {
+            if (current.Classes.Contains("tileAction"))
+            {
+                return true;
+            }
+
+            current = current.Parent as Control;
+        }
+
+        return false;
     }
 
     private static bool HasFiles(DragEventArgs e)

@@ -59,6 +59,28 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void ClearMusicTrackItemBindingClearsRequestedTrackWithoutChangingSelectedTrack()
+    {
+        var first = new Track("First", "C:\\audio\\first.mp3", TrackRole.Music);
+        var second = new Track("Second", "C:\\audio\\second.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [first, second]);
+        var storage = StorageWith(playlist, new EffectPlaylist("SFX"));
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.BindMusicTrackItemCommand.Execute(first);
+        Assert.True(viewModel.HandleHotkey(new Hotkey(0, "A", HotkeyModifier.None)));
+        viewModel.BindMusicTrackItemCommand.Execute(second);
+        Assert.True(viewModel.HandleHotkey(new Hotkey(1, "B", HotkeyModifier.None)));
+
+        viewModel.ClearMusicTrackItemBindingCommand.Execute(second);
+
+        Assert.Equal(first.Id, viewModel.SelectedMusicTrack?.Id);
+        Assert.Equal("A", Assert.Single(viewModel.MusicTrackTiles, tile => tile.Track.Id == first.Id).HotkeyText);
+        Assert.False(Assert.Single(viewModel.MusicTrackTiles, tile => tile.Track.Id == second.Id).HasHotkey);
+        Assert.True(storage.SaveCount > 0);
+    }
+
+    [Fact]
     public void MoveEffectTrackItemDownReordersRequestedEffect()
     {
         var first = new Track("First", "C:\\audio\\first.wav", TrackRole.Effect);

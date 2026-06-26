@@ -32,6 +32,13 @@
       <Setter Property="MinHeight" Value="28" />
       <Setter Property="Padding" Value="7,3" />
     </Style>
+    <Style Selector="Button.tileAction">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="24" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
     <Style Selector="Button.primary">
       <Setter Property="Background" Value="{Binding AccentBrush}" />
       <Setter Property="Foreground" Value="#11151B" />
@@ -267,7 +274,7 @@
                     </Border.ContextMenu>
                     <Grid ColumnDefinitions="4,*" ColumnSpacing="8">
                       <Border Width="4" CornerRadius="2" Background="{Binding DataContext.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsCurrent}" />
-                      <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="5">
+                      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="5">
                         <Grid ColumnDefinitions="*,Auto">
                           <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" Margin="8,0,0,0">
@@ -286,6 +293,23 @@
                           </StackPanel>
                         </Grid>
                         <TextBlock Grid.Row="1" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
+                          <Button Classes="tileAction primary"
+                                  Content="Play"
+                                  ToolTip.Tip="Play this music track"
+                                  Command="{Binding DataContext.PlayMusicTrackCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding Track}" />
+                          <Button Classes="tileAction"
+                                  Content="Key"
+                                  ToolTip.Tip="Assign a local hotkey to this track"
+                                  Command="{Binding DataContext.BindMusicTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding Track}" />
+                          <Button Classes="tileAction danger"
+                                  Content="Del"
+                                  ToolTip.Tip="Delete this track from the playlist"
+                                  Command="{Binding DataContext.DeleteMusicTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding Track}" />
+                        </StackPanel>
                       </Grid>
                     </Grid>
                   </Border>
@@ -366,7 +390,7 @@
                         <MenuItem Header="Delete" Tag="{Binding Track}" Click="OnDeleteEffectTrackMenuClick" />
                       </ContextMenu>
                     </Border.ContextMenu>
-                    <Grid RowDefinitions="Auto,Auto" RowSpacing="5">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="5">
                       <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" Margin="8,0,0,0">
@@ -382,6 +406,23 @@
                         </StackPanel>
                       </Grid>
                       <TextBlock Grid.Row="1" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                      <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
+                        <Button Classes="tileAction primary"
+                                Content="Play"
+                                ToolTip.Tip="Play this SFX"
+                                Command="{Binding DataContext.PlayEffectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Track}" />
+                        <Button Classes="tileAction"
+                                Content="Key"
+                                ToolTip.Tip="Assign a local hotkey to this SFX"
+                                Command="{Binding DataContext.BindEffectTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Track}" />
+                        <Button Classes="tileAction danger"
+                                Content="Del"
+                                ToolTip.Tip="Delete this SFX from the playlist"
+                                Command="{Binding DataContext.DeleteEffectTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Track}" />
+                      </StackPanel>
                     </Grid>
                   </Border>
                 </DataTemplate>
