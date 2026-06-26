@@ -80,8 +80,13 @@
     <Style Selector="Border.emptyState">
       <Setter Property="Background" Value="{Binding DataContext.PanelAltBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
       <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Padding" Value="18" />
+      <Setter Property="Padding" Value="24" />
       <Setter Property="Margin" Value="4" />
+    </Style>
+    <Style Selector="TextBlock.emptyTitle">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
     </Style>
   </Window.Styles>
 
@@ -243,9 +248,13 @@
             </ListBox>
 
             <Border Grid.Row="1" Classes="emptyState" IsVisible="{Binding IsMusicTracksEmpty}">
-              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-                <TextBlock Text="No music tracks" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Classes="caption" Text="No tracks in this playlist" HorizontalAlignment="Center" />
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" MaxWidth="360">
+                <TextBlock Classes="emptyTitle" Text="No music tracks" />
+                <TextBlock Classes="caption" Text="Music playlist is empty" HorizontalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,6,0,0">
+                  <Button Classes="primary" Content="Add Files" Command="{Binding AddMusicFilesCommand}" />
+                  <Button Content="Add Folder" Command="{Binding AddMusicFolderCommand}" />
+                </StackPanel>
               </StackPanel>
             </Border>
 
@@ -334,9 +343,13 @@
             </ListBox>
 
             <Border Grid.Row="1" Classes="emptyState" IsVisible="{Binding IsEffectTracksEmpty}">
-              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-                <TextBlock Text="No SFX tracks" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Classes="caption" Text="No effects in this playlist" HorizontalAlignment="Center" />
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" MaxWidth="360">
+                <TextBlock Classes="emptyTitle" Text="No SFX tracks" />
+                <TextBlock Classes="caption" Text="SFX playlist is empty" HorizontalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,6,0,0">
+                  <Button Classes="primary" Content="Add Files" Command="{Binding AddEffectFilesCommand}" />
+                  <Button Content="Add Folder" Command="{Binding AddEffectFolderCommand}" />
+                </StackPanel>
               </StackPanel>
             </Border>
 
