@@ -188,8 +188,8 @@
 
             <ListBox Grid.Row="1"
                      IsVisible="{Binding HasMusicTracks}"
-                     ItemsSource="{Binding MusicTracks}"
-                     SelectedItem="{Binding SelectedMusicTrack}"
+                     ItemsSource="{Binding MusicTrackTiles}"
+                     SelectedItem="{Binding SelectedMusicTrackTile}"
                      DoubleTapped="OnMusicTrackDoubleTapped"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <ListBox.ItemsPanel>
@@ -205,22 +205,38 @@
                   <Border Classes="trackTile" Width="{Binding DataContext.MusicTileWidth, RelativeSource={RelativeSource AncestorType=Window}}" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}">
                     <Border.ContextMenu>
                       <ContextMenu DataContext="{Binding}">
-                        <MenuItem Header="Play" Tag="{Binding}" Click="OnPlayMusicTrackMenuClick" />
-                        <MenuItem Header="Bind Hotkey" Tag="{Binding}" Click="OnBindMusicTrackMenuClick" />
-                        <MenuItem Header="Clear Hotkey" Tag="{Binding}" Click="OnClearMusicTrackHotkeyMenuClick" />
+                        <MenuItem Header="Play" Tag="{Binding Track}" Click="OnPlayMusicTrackMenuClick" />
+                        <MenuItem Header="Bind Hotkey" Tag="{Binding Track}" Click="OnBindMusicTrackMenuClick" />
+                        <MenuItem Header="Clear Hotkey" Tag="{Binding Track}" Click="OnClearMusicTrackHotkeyMenuClick" />
                         <Separator />
-                        <MenuItem Header="Move Up" Tag="{Binding}" Click="OnMoveMusicTrackUpMenuClick" />
-                        <MenuItem Header="Move Down" Tag="{Binding}" Click="OnMoveMusicTrackDownMenuClick" />
+                        <MenuItem Header="Move Up" Tag="{Binding Track}" Click="OnMoveMusicTrackUpMenuClick" />
+                        <MenuItem Header="Move Down" Tag="{Binding Track}" Click="OnMoveMusicTrackDownMenuClick" />
                         <Separator />
-                        <MenuItem Header="Delete" Tag="{Binding}" Click="OnDeleteMusicTrackMenuClick" />
+                        <MenuItem Header="Delete" Tag="{Binding Track}" Click="OnDeleteMusicTrackMenuClick" />
                       </ContextMenu>
                     </Border.ContextMenu>
-                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                      <Border Grid.Column="1" Classes="badge" Margin="10,0,0,0">
-                        <TextBlock Classes="caption" Text="{Binding VolumeMultiplier, StringFormat={}{0:P0}}" />
-                      </Border>
-                      <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                    <Grid ColumnDefinitions="4,*" ColumnSpacing="8">
+                      <Border Width="4" CornerRadius="2" Background="{Binding DataContext.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}" IsVisible="{Binding IsCurrent}" />
+                      <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="5">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" Margin="8,0,0,0">
+                            <Border Classes="badge" IsVisible="{Binding IsCurrent}">
+                              <TextBlock Classes="caption" Text="Playing" Foreground="{Binding DataContext.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </Border>
+                            <Border Classes="badge" IsVisible="{Binding HasHotkey}">
+                              <TextBlock Classes="caption" FontFamily="Consolas" Text="{Binding HotkeyText}" />
+                            </Border>
+                            <Border Classes="badge" IsVisible="{Binding IsFileMissing}">
+                              <TextBlock Classes="caption" Text="Missing" Foreground="{Binding DataContext.DangerBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </Border>
+                            <Border Classes="badge">
+                              <TextBlock Classes="caption" Text="{Binding VolumeMultiplier, StringFormat={}{0:P0}}" />
+                            </Border>
+                          </StackPanel>
+                        </Grid>
+                        <TextBlock Grid.Row="1" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                      </Grid>
                     </Grid>
                   </Border>
                 </DataTemplate>
@@ -270,8 +286,8 @@
 
             <ListBox Grid.Row="1"
                      IsVisible="{Binding HasEffectTracks}"
-                     ItemsSource="{Binding EffectTracks}"
-                     SelectedItem="{Binding SelectedEffectTrack}"
+                     ItemsSource="{Binding EffectTrackTiles}"
+                     SelectedItem="{Binding SelectedEffectTrackTile}"
                      DoubleTapped="OnEffectTrackDoubleTapped"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <ListBox.ItemsPanel>
@@ -287,22 +303,32 @@
                   <Border Classes="trackTile" Width="{Binding DataContext.EffectTileWidth, RelativeSource={RelativeSource AncestorType=Window}}" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}">
                     <Border.ContextMenu>
                       <ContextMenu DataContext="{Binding}">
-                        <MenuItem Header="Play SFX" Tag="{Binding}" Click="OnPlayEffectTrackMenuClick" />
-                        <MenuItem Header="Bind Hotkey" Tag="{Binding}" Click="OnBindEffectTrackMenuClick" />
-                        <MenuItem Header="Clear Hotkey" Tag="{Binding}" Click="OnClearEffectTrackHotkeyMenuClick" />
+                        <MenuItem Header="Play SFX" Tag="{Binding Track}" Click="OnPlayEffectTrackMenuClick" />
+                        <MenuItem Header="Bind Hotkey" Tag="{Binding Track}" Click="OnBindEffectTrackMenuClick" />
+                        <MenuItem Header="Clear Hotkey" Tag="{Binding Track}" Click="OnClearEffectTrackHotkeyMenuClick" />
                         <Separator />
-                        <MenuItem Header="Move Up" Tag="{Binding}" Click="OnMoveEffectTrackUpMenuClick" />
-                        <MenuItem Header="Move Down" Tag="{Binding}" Click="OnMoveEffectTrackDownMenuClick" />
+                        <MenuItem Header="Move Up" Tag="{Binding Track}" Click="OnMoveEffectTrackUpMenuClick" />
+                        <MenuItem Header="Move Down" Tag="{Binding Track}" Click="OnMoveEffectTrackDownMenuClick" />
                         <Separator />
-                        <MenuItem Header="Delete" Tag="{Binding}" Click="OnDeleteEffectTrackMenuClick" />
+                        <MenuItem Header="Delete" Tag="{Binding Track}" Click="OnDeleteEffectTrackMenuClick" />
                       </ContextMenu>
                     </Border.ContextMenu>
-                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                      <Border Grid.Column="1" Classes="badge" Margin="10,0,0,0">
-                        <TextBlock Classes="caption" Text="{Binding VolumeMultiplier, StringFormat={}{0:P0}}" />
-                      </Border>
-                      <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                    <Grid RowDefinitions="Auto,Auto" RowSpacing="5">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" Margin="8,0,0,0">
+                          <Border Classes="badge" IsVisible="{Binding HasHotkey}">
+                            <TextBlock Classes="caption" FontFamily="Consolas" Text="{Binding HotkeyText}" />
+                          </Border>
+                          <Border Classes="badge" IsVisible="{Binding IsFileMissing}">
+                            <TextBlock Classes="caption" Text="Missing" Foreground="{Binding DataContext.DangerBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+                          </Border>
+                          <Border Classes="badge">
+                            <TextBlock Classes="caption" Text="{Binding VolumeMultiplier, StringFormat={}{0:P0}}" />
+                          </Border>
+                        </StackPanel>
+                      </Grid>
+                      <TextBlock Grid.Row="1" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
                     </Grid>
                   </Border>
                 </DataTemplate>

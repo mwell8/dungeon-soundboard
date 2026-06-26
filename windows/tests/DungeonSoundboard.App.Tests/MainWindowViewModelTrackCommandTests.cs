@@ -60,6 +60,45 @@ public sealed class MainWindowViewModelTrackCommandTests
         Assert.True(storage.SaveCount > 0);
     }
 
+    [Fact]
+    public void MusicTrackTilesExposeHotkeyCurrentAndMissingFileStatus()
+    {
+        var missingTrack = new Track("Missing", "C:\\audio\\missing-file.mp3", TrackRole.Music);
+        var currentTrack = new Track("Current", "C:\\audio\\current.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [missingTrack, currentTrack]);
+        using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")));
+
+        viewModel.BindMusicTrackItemCommand.Execute(missingTrack);
+        Assert.True(viewModel.HandleHotkey(new Hotkey(0, "A", HotkeyModifier.None)));
+        viewModel.PlayMusicTrackCommand.Execute(currentTrack);
+
+        var missingTile = Assert.Single(viewModel.MusicTrackTiles, tile => tile.Track.Id == missingTrack.Id);
+        var currentTile = Assert.Single(viewModel.MusicTrackTiles, tile => tile.Track.Id == currentTrack.Id);
+        Assert.Equal("A", missingTile.HotkeyText);
+        Assert.True(missingTile.HasHotkey);
+        Assert.True(missingTile.IsFileMissing);
+        Assert.Equal("Missing file", missingTile.FileStatus);
+        Assert.True(currentTile.IsCurrent);
+    }
+
+    [Fact]
+    public void EffectTrackTilesExposeHotkeyAndMissingFileStatus()
+    {
+        var effect = new Track("Door slam", "C:\\audio\\missing-door.wav", TrackRole.Effect);
+        var effects = new EffectPlaylist("SFX", [effect]);
+        using var viewModel = CreateViewModel(StorageWith(new Playlist("Music"), effects));
+
+        viewModel.BindEffectTrackItemCommand.Execute(effect);
+        Assert.True(viewModel.HandleHotkey(new Hotkey(1, "S", HotkeyModifier.Shift)));
+
+        var tile = Assert.Single(viewModel.EffectTrackTiles);
+        Assert.Equal(effect.Id, tile.Track.Id);
+        Assert.Equal("Shift+S", tile.HotkeyText);
+        Assert.True(tile.HasHotkey);
+        Assert.True(tile.IsFileMissing);
+        Assert.Equal("Missing file", tile.FileStatus);
+    }
+
     private static MainWindowViewModel CreateViewModel(FakeStorageService storage)
     {
         return new MainWindowViewModel(storage, new FileImportService(), new FakeAudioService());

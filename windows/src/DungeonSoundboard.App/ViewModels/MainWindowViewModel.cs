@@ -233,6 +233,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(SelectedMusicTrackVolume));
                 OnPropertyChanged(nameof(SelectedMusicHotkeyText));
                 OnPropertyChanged(nameof(SelectedMusicTrackFileStatus));
+                OnPropertyChanged(nameof(SelectedMusicTrackTile));
                 NotifyCommandStates();
             }
         }
@@ -249,6 +250,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(SelectedEffectTrackVolume));
                 OnPropertyChanged(nameof(SelectedEffectHotkeyText));
                 OnPropertyChanged(nameof(SelectedEffectTrackFileStatus));
+                OnPropertyChanged(nameof(SelectedEffectTrackTile));
                 NotifyCommandStates();
             }
         }
@@ -256,6 +258,34 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<Track> MusicTracks => SelectedMusicPlaylist?.Tracks ?? [];
     public IReadOnlyList<Track> EffectTracks => SelectedEffectPlaylist?.Effects ?? [];
+    public IReadOnlyList<TrackTileViewModel> MusicTrackTiles => SelectedMusicPlaylist is null
+        ? []
+        : SelectedMusicPlaylist.Tracks
+            .Select(track => TrackTileFor(track, HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, track.Id), CurrentTrack?.Id == track.Id))
+            .ToList();
+
+    public IReadOnlyList<TrackTileViewModel> EffectTrackTiles => SelectedEffectPlaylist is null
+        ? []
+        : SelectedEffectPlaylist.Effects
+            .Select(track => TrackTileFor(track, HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, track.Id), isCurrent: false))
+            .ToList();
+
+    public TrackTileViewModel? SelectedMusicTrackTile
+    {
+        get => SelectedMusicTrack is null
+            ? null
+            : MusicTrackTiles.FirstOrDefault(tile => tile.Track.Id == SelectedMusicTrack.Id);
+        set => SelectedMusicTrack = value?.Track;
+    }
+
+    public TrackTileViewModel? SelectedEffectTrackTile
+    {
+        get => SelectedEffectTrack is null
+            ? null
+            : EffectTrackTiles.FirstOrDefault(tile => tile.Track.Id == SelectedEffectTrack.Id);
+        set => SelectedEffectTrack = value?.Track;
+    }
+
     public bool HasMusicTracks => MusicTracks.Count > 0;
     public bool HasEffectTracks => EffectTracks.Count > 0;
     public bool IsMusicTracksEmpty => !HasMusicTracks;
@@ -335,6 +365,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             ApplyMusicVolume();
             Save();
             OnPropertyChanged();
+            NotifyMusicTracksChanged();
         }
     }
 
@@ -351,6 +382,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             SelectedEffectTrack.VolumeMultiplier = value;
             Save();
             OnPropertyChanged();
+            NotifyEffectTracksChanged();
         }
     }
 
@@ -362,6 +394,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _currentTrack, value))
             {
                 OnPropertyChanged(nameof(CurrentTrackTitle));
+                OnPropertyChanged(nameof(MusicTrackTiles));
+                OnPropertyChanged(nameof(SelectedMusicTrackTile));
                 ApplyMusicVolume();
             }
         }
@@ -1449,6 +1483,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         return _state.Hotkeys.HotkeyFor(action)?.DisplayText ?? "Unassigned";
     }
 
+    private TrackTileViewModel TrackTileFor(Track track, HotkeyAction action, bool isCurrent)
+    {
+        return new TrackTileViewModel(
+            track,
+            _state.Hotkeys.HotkeyFor(action)?.DisplayText,
+            isCurrent,
+            !File.Exists(track.Path));
+    }
+
     private static string TrackCountText(int count, string singular)
     {
         var suffix = count == 1 ? singular : $"{singular}s";
@@ -1493,6 +1536,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void NotifyHotkeysChanged()
     {
         OnPropertyChanged(nameof(SystemHotkeyRows));
+        OnPropertyChanged(nameof(MusicTrackTiles));
+        OnPropertyChanged(nameof(EffectTrackTiles));
+        OnPropertyChanged(nameof(SelectedMusicTrackTile));
+        OnPropertyChanged(nameof(SelectedEffectTrackTile));
         OnPropertyChanged(nameof(SelectedMusicHotkeyText));
         OnPropertyChanged(nameof(SelectedEffectHotkeyText));
     }
@@ -1511,6 +1558,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void NotifyMusicTracksChanged()
     {
         OnPropertyChanged(nameof(MusicTracks));
+        OnPropertyChanged(nameof(MusicTrackTiles));
+        OnPropertyChanged(nameof(SelectedMusicTrackTile));
         OnPropertyChanged(nameof(HasMusicTracks));
         OnPropertyChanged(nameof(IsMusicTracksEmpty));
         OnPropertyChanged(nameof(MusicTrackCountText));
@@ -1520,6 +1569,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void NotifyEffectTracksChanged()
     {
         OnPropertyChanged(nameof(EffectTracks));
+        OnPropertyChanged(nameof(EffectTrackTiles));
+        OnPropertyChanged(nameof(SelectedEffectTrackTile));
         OnPropertyChanged(nameof(HasEffectTracks));
         OnPropertyChanged(nameof(IsEffectTracksEmpty));
         OnPropertyChanged(nameof(EffectTrackCountText));

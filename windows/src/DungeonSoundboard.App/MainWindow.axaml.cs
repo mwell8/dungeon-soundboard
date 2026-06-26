@@ -180,7 +180,9 @@ public partial class MainWindow : Window
             return null;
         }
 
-        return control.Tag as Track ?? control.DataContext as Track;
+        return control.Tag as Track
+            ?? (control.DataContext as TrackTileViewModel)?.Track
+            ?? control.DataContext as Track;
     }
 
     private static bool HasFiles(DragEventArgs e)
