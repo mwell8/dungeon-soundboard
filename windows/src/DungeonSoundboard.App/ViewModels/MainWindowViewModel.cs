@@ -70,6 +70,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             new ThemePresetOption(ThemePreset.ForestMist, "Forest Mist")
         ];
         RepeatModeOptions = [RepeatMode.Off, RepeatMode.One, RepeatMode.All];
+        ColumnCountOptions = [2, 3, 4];
         BackgroundLayoutModeOptions =
         [
             BackgroundLayoutMode.Fill,
@@ -134,6 +135,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public ObservableCollection<EffectPlaylist> EffectPlaylists { get; }
     public IReadOnlyList<ThemePresetOption> ThemePresetOptions { get; }
     public IReadOnlyList<RepeatMode> RepeatModeOptions { get; }
+    public IReadOnlyList<int> ColumnCountOptions { get; }
     public IReadOnlyList<BackgroundLayoutMode> BackgroundLayoutModeOptions { get; }
 
     public IRelayCommand CreateMusicPlaylistCommand { get; }
@@ -446,6 +448,46 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string SelectedMusicTrackFileStatus => TrackFileStatus(SelectedMusicTrack);
 
     public string SelectedEffectTrackFileStatus => TrackFileStatus(SelectedEffectTrack);
+
+    public int MusicColumns
+    {
+        get => _state.Preferences.MusicColumns;
+        set
+        {
+            var normalized = PlayerPreferences.NormalizeColumns(value);
+            if (_state.Preferences.MusicColumns == normalized)
+            {
+                return;
+            }
+
+            _state.Preferences.MusicColumns = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(MusicTileWidth));
+            Save();
+        }
+    }
+
+    public int EffectsColumns
+    {
+        get => _state.Preferences.EffectsColumns;
+        set
+        {
+            var normalized = PlayerPreferences.NormalizeColumns(value);
+            if (_state.Preferences.EffectsColumns == normalized)
+            {
+                return;
+            }
+
+            _state.Preferences.EffectsColumns = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(EffectTileWidth));
+            Save();
+        }
+    }
+
+    public double MusicTileWidth => TileWidthForColumns(MusicColumns);
+
+    public double EffectTileWidth => TileWidthForColumns(EffectsColumns);
 
     public IReadOnlyList<HotkeyDisplayRow> SystemHotkeyRows => HotkeyAction.SystemActions
         .Select(action => new HotkeyDisplayRow(action, SystemActionName(action), HotkeyTextFor(action)))
@@ -1421,6 +1463,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         return File.Exists(track.Path) ? "File available" : "File missing";
+    }
+
+    private static double TileWidthForColumns(int columns)
+    {
+        return PlayerPreferences.NormalizeColumns(columns) switch
+        {
+            2 => 420,
+            4 => 204,
+            _ => 268
+        };
     }
 
     private static string SystemActionName(HotkeyAction action)

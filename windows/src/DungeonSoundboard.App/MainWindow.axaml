@@ -194,12 +194,15 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
-                  <WrapPanel />
+                  <WrapPanel
+                      ItemWidth="{Binding DataContext.MusicTileWidth, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                      ItemSpacing="8"
+                      LineSpacing="8" />
                 </ItemsPanelTemplate>
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Border Classes="trackTile" Width="268" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}">
+                  <Border Classes="trackTile" Width="{Binding DataContext.MusicTileWidth, RelativeSource={RelativeSource AncestorType=Window}}" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}">
                     <Border.ContextMenu>
                       <ContextMenu DataContext="{Binding}">
                         <MenuItem Header="Play" Tag="{Binding}" Click="OnPlayMusicTrackMenuClick" />
@@ -273,12 +276,15 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
               <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
-                  <WrapPanel />
+                  <WrapPanel
+                      ItemWidth="{Binding DataContext.EffectTileWidth, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                      ItemSpacing="8"
+                      LineSpacing="8" />
                 </ItemsPanelTemplate>
               </ListBox.ItemsPanel>
               <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Border Classes="trackTile" Width="268" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}">
+                  <Border Classes="trackTile" Width="{Binding DataContext.EffectTileWidth, RelativeSource={RelativeSource AncestorType=Window}}" Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}">
                     <Border.ContextMenu>
                       <ContextMenu DataContext="{Binding}">
                         <MenuItem Header="Play SFX" Tag="{Binding}" Click="OnPlayEffectTrackMenuClick" />

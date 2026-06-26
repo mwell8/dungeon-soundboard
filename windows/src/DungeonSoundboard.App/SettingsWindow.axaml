@@ -131,6 +131,16 @@
                 <TextBlock Classes="sectionTitle" Text="Current Background" />
                 <TextBlock Text="{Binding Main.BackgroundImagePath}" TextWrapping="Wrap" />
               </StackPanel>
+
+              <StackPanel Spacing="8">
+                <TextBlock Classes="sectionTitle" Text="Deck Layout" />
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" RowDefinitions="Auto" ColumnSpacing="10">
+                  <TextBlock Classes="fieldLabel" Text="Music columns" />
+                  <ComboBox Grid.Column="1" Width="86" ItemsSource="{Binding Main.ColumnCountOptions}" SelectedItem="{Binding Main.MusicColumns}" />
+                  <TextBlock Grid.Column="2" Classes="fieldLabel" Text="SFX columns" />
+                  <ComboBox Grid.Column="3" Width="86" ItemsSource="{Binding Main.ColumnCountOptions}" SelectedItem="{Binding Main.EffectsColumns}" />
+                </Grid>
+              </StackPanel>
             </StackPanel>
           </ScrollViewer>
         </TabItem>

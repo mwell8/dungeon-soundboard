@@ -52,6 +52,34 @@ public sealed class MainWindowViewModelBackgroundTests
         Assert.Equal(BackgroundLayoutMode.Fill, storage.State.Theme.Background.LayoutMode);
     }
 
+    [Fact]
+    public void TrackColumnSettingsNormalizeAndChangeTileWidths()
+    {
+        var storage = StorageWithImageBackground();
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.MusicColumns = 4;
+        viewModel.EffectsColumns = 2;
+
+        Assert.Equal(4, storage.State.Preferences.MusicColumns);
+        Assert.Equal(2, storage.State.Preferences.EffectsColumns);
+        Assert.Equal(204, viewModel.MusicTileWidth);
+        Assert.Equal(420, viewModel.EffectTileWidth);
+
+        viewModel.MusicColumns = 99;
+
+        Assert.Equal(3, storage.State.Preferences.MusicColumns);
+        Assert.Equal(268, viewModel.MusicTileWidth);
+    }
+
+    [Fact]
+    public void ColumnOptionsExposeSupportedRange()
+    {
+        using var viewModel = CreateViewModel(StorageWithImageBackground());
+
+        Assert.Equal([2, 3, 4], viewModel.ColumnCountOptions);
+    }
+
     private static MainWindowViewModel CreateViewModel(FakeStorageService storage)
     {
         return new MainWindowViewModel(storage, new FileImportService(), new FakeAudioService());
