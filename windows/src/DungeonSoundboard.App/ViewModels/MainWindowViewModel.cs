@@ -97,6 +97,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         PlaySelectedMusicCommand = new RelayCommand(() => PlayMusicTrack(SelectedMusicPlaylist, SelectedMusicTrack), () => SelectedMusicTrack is not null);
         PlayMusicTrackCommand = new RelayCommand<Track>(track => PlayMusicTrack(SelectedMusicPlaylist, track));
         PlayEffectCommand = new RelayCommand<Track>(PlayEffect);
+        PlayMusicTrackTileCommand = new RelayCommand<TrackTileViewModel>(PlayMusicTrackTile);
+        PlayEffectTrackTileCommand = new RelayCommand<TrackTileViewModel>(PlayEffectTrackTile);
         PlayPauseCommand = new RelayCommand(PlayPause);
         StopAllCommand = new RelayCommand(StopAll);
         StopEffectsCommand = new RelayCommand(StopEffects);
@@ -153,6 +155,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand PlaySelectedMusicCommand { get; }
     public IRelayCommand<Track> PlayMusicTrackCommand { get; }
     public IRelayCommand<Track> PlayEffectCommand { get; }
+    public IRelayCommand<TrackTileViewModel> PlayMusicTrackTileCommand { get; }
+    public IRelayCommand<TrackTileViewModel> PlayEffectTrackTileCommand { get; }
     public IRelayCommand PlayPauseCommand { get; }
     public IRelayCommand StopAllCommand { get; }
     public IRelayCommand StopEffectsCommand { get; }
@@ -1109,6 +1113,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void PlayMusicTrackTile(TrackTileViewModel? tile)
+    {
+        if (SelectedMusicPlaylist is null || tile is null || !SelectedMusicPlaylist.Tracks.Any(track => track.Id == tile.Track.Id))
+        {
+            return;
+        }
+
+        SelectedMusicTrack = tile.Track;
+        PlayMusicTrack(SelectedMusicPlaylist, tile.Track);
+    }
+
     private void PlayEffect(Track? track)
     {
         if (track is null)
@@ -1125,6 +1140,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             ErrorMessage = $"Failed to play effect: {track.Title}. {ex.Message}";
         }
+    }
+
+    private void PlayEffectTrackTile(TrackTileViewModel? tile)
+    {
+        if (SelectedEffectPlaylist is null || tile is null || !SelectedEffectPlaylist.Effects.Any(track => track.Id == tile.Track.Id))
+        {
+            return;
+        }
+
+        SelectedEffectTrack = tile.Track;
+        PlayEffect(tile.Track);
     }
 
     private void PlayPause()

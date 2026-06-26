@@ -99,9 +99,52 @@ public sealed class MainWindowViewModelTrackCommandTests
         Assert.Equal("Missing file", tile.FileStatus);
     }
 
+    [Fact]
+    public void PlayMusicTrackTileSelectsAndStartsRequestedTrack()
+    {
+        var first = new Track("First", "C:\\audio\\first.mp3", TrackRole.Music);
+        var second = new Track("Second", "C:\\audio\\second.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [first, second]);
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")), audio);
+
+        var tile = Assert.Single(viewModel.MusicTrackTiles, candidate => candidate.Track.Id == second.Id);
+        viewModel.PlayMusicTrackTileCommand.Execute(tile);
+
+        Assert.Equal(second.Id, viewModel.SelectedMusicTrack?.Id);
+        Assert.Equal(second.Id, viewModel.CurrentTrack?.Id);
+        Assert.Equal(second.Id, audio.LastMusicTrack?.Id);
+        Assert.True(viewModel.IsPlaying);
+    }
+
+    [Fact]
+    public void PlayEffectTrackTileSelectsAndStartsEffectWithoutStoppingMusic()
+    {
+        var music = new Track("Music", "C:\\audio\\music.mp3", TrackRole.Music);
+        var effect = new Track("Door slam", "C:\\audio\\door.wav", TrackRole.Effect);
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(
+            StorageWith(new Playlist("Music", [music]), new EffectPlaylist("SFX", [effect])),
+            audio);
+
+        viewModel.PlayMusicTrackCommand.Execute(music);
+        var tile = Assert.Single(viewModel.EffectTrackTiles);
+        viewModel.PlayEffectTrackTileCommand.Execute(tile);
+
+        Assert.Equal(effect.Id, viewModel.SelectedEffectTrack?.Id);
+        Assert.Equal(effect.Id, audio.LastEffectTrack?.Id);
+        Assert.Equal(music.Id, viewModel.CurrentTrack?.Id);
+        Assert.True(audio.IsMusicPlaying);
+    }
+
     private static MainWindowViewModel CreateViewModel(FakeStorageService storage)
     {
-        return new MainWindowViewModel(storage, new FileImportService(), new FakeAudioService());
+        return CreateViewModel(storage, new FakeAudioService());
+    }
+
+    private static MainWindowViewModel CreateViewModel(FakeStorageService storage, FakeAudioService audio)
+    {
+        return new MainWindowViewModel(storage, new FileImportService(), audio);
     }
 
     private static FakeStorageService StorageWith(Playlist musicPlaylist, EffectPlaylist effectPlaylist)
@@ -149,6 +192,8 @@ public sealed class MainWindowViewModelTrackCommandTests
 
         public int ActiveEffectCount { get; private set; }
         public bool IsMusicPlaying { get; private set; }
+        public Track? LastMusicTrack { get; private set; }
+        public Track? LastEffectTrack { get; private set; }
 
         public void Dispose()
         {
@@ -157,6 +202,7 @@ public sealed class MainWindowViewModelTrackCommandTests
         public void PlayMusic(Track track, double volume)
         {
             IsMusicPlaying = true;
+            LastMusicTrack = track;
         }
 
         public void PauseMusic()
@@ -188,6 +234,7 @@ public sealed class MainWindowViewModelTrackCommandTests
         public void PlayEffect(Track track, double volume)
         {
             ActiveEffectCount++;
+            LastEffectTrack = track;
             EffectPlaybackCountChanged?.Invoke(this, EventArgs.Empty);
         }
 

@@ -89,20 +89,16 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void OnMusicTrackDoubleTapped(object? sender, TappedEventArgs e)
+    private void OnMusicTrackTapped(object? sender, TappedEventArgs e)
     {
-        if (DataContext is MainWindowViewModel viewModel && viewModel.SelectedMusicTrack is not null)
-        {
-            viewModel.PlayMusicTrackCommand.Execute(viewModel.SelectedMusicTrack);
-        }
+        ExecuteTrackTileCommand(sender, (viewModel, tile) => viewModel.PlayMusicTrackTileCommand.Execute(tile));
+        e.Handled = true;
     }
 
-    private void OnEffectTrackDoubleTapped(object? sender, TappedEventArgs e)
+    private void OnEffectTrackTapped(object? sender, TappedEventArgs e)
     {
-        if (DataContext is MainWindowViewModel viewModel && viewModel.SelectedEffectTrack is not null)
-        {
-            viewModel.PlayEffectCommand.Execute(viewModel.SelectedEffectTrack);
-        }
+        ExecuteTrackTileCommand(sender, (viewModel, tile) => viewModel.PlayEffectTrackTileCommand.Execute(tile));
+        e.Handled = true;
     }
 
     private void OnPlayMusicTrackMenuClick(object? sender, RoutedEventArgs e)
@@ -173,6 +169,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ExecuteTrackTileCommand(object? sender, Action<MainWindowViewModel, TrackTileViewModel> execute)
+    {
+        if (DataContext is MainWindowViewModel viewModel && TrackTileFromSender(sender) is { } tile)
+        {
+            execute(viewModel, tile);
+        }
+    }
+
     private static Track? TrackFromSender(object? sender)
     {
         if (sender is not Control control)
@@ -183,6 +187,11 @@ public partial class MainWindow : Window
         return control.Tag as Track
             ?? (control.DataContext as TrackTileViewModel)?.Track
             ?? control.DataContext as Track;
+    }
+
+    private static TrackTileViewModel? TrackTileFromSender(object? sender)
+    {
+        return sender is Control control ? control.DataContext as TrackTileViewModel : null;
     }
 
     private static bool HasFiles(DragEventArgs e)
