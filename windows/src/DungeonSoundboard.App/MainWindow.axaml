@@ -483,6 +483,14 @@
         <Slider Grid.Row="1" Grid.Column="3" Width="180" Minimum="0" Maximum="1" Value="{Binding EffectsVolume}" Margin="0,8,0,0" />
         <TextBlock Grid.Row="1" Grid.Column="4" Text="Ducking" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="16,8,8,0" />
         <Slider Grid.Row="1" Grid.Column="5" Width="190" Minimum="0.2" Maximum="1" Value="{Binding DuckingAmount}" Margin="0,8,0,0" />
+        <StackPanel Grid.Row="1" Grid.Column="6" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="16,8,0,0">
+          <Border Classes="badge" Width="92">
+            <TextBlock Classes="caption" Text="{Binding EffectsPlaybackStatus}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+          </Border>
+          <Border Classes="badge" Width="96">
+            <TextBlock Classes="caption" Text="{Binding DuckingStatus}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+          </Border>
+        </StackPanel>
       </Grid>
     </Border>
 

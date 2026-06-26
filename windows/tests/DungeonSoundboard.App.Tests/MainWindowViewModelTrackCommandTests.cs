@@ -209,6 +209,36 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void EffectsPlaybackStatusReflectsActiveEffectsAndDucking()
+    {
+        var effect = new Track("Door slam", "C:\\audio\\door.wav", TrackRole.Effect);
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(
+            StorageWith(new Playlist("Music"), new EffectPlaylist("SFX", [effect])),
+            audio);
+        var changedProperties = new List<string>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName ?? "");
+
+        Assert.Equal("SFX idle", viewModel.EffectsPlaybackStatus);
+        Assert.Equal("Ducking off", viewModel.DuckingStatus);
+
+        viewModel.PlayEffectCommand.Execute(effect);
+
+        Assert.Equal("1 SFX active", viewModel.EffectsPlaybackStatus);
+        Assert.Equal("Ducking active", viewModel.DuckingStatus);
+        Assert.Contains(nameof(MainWindowViewModel.EffectsPlaybackStatus), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.DuckingStatus), changedProperties);
+
+        changedProperties.Clear();
+        viewModel.StopEffectsCommand.Execute(null);
+
+        Assert.Equal("SFX idle", viewModel.EffectsPlaybackStatus);
+        Assert.Equal("Ducking off", viewModel.DuckingStatus);
+        Assert.Contains(nameof(MainWindowViewModel.EffectsPlaybackStatus), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.DuckingStatus), changedProperties);
+    }
+
+    [Fact]
     public void PlayMusicPlaylistItemSelectsPlaylistEnablesShuffleAndStartsTrack()
     {
         var firstPlaylist = new Playlist("First", [new Track("First Track", "C:\\audio\\first.mp3", TrackRole.Music)]);

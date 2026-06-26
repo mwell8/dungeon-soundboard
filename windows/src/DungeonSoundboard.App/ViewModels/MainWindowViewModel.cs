@@ -51,7 +51,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importService = importService;
         _audio = audio;
         _audio.MusicFinished += (_, _) => NextTrackFromPlaybackEnd();
-        _audio.EffectPlaybackCountChanged += (_, _) => ApplyMusicVolume();
+        _audio.EffectPlaybackCountChanged += (_, _) => HandleEffectPlaybackCountChanged();
 
         _state = _storage.Load();
         MusicPlaylists = new ObservableCollection<Playlist>(_state.MusicPlaylists);
@@ -425,6 +425,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string PlaybackStatus => IsPlaying ? "Playing" : "Paused / stopped";
 
     public string PlayPauseButtonText => IsPlaying ? "Pause" : _isMusicPaused ? "Resume" : "Play";
+
+    public string EffectsPlaybackStatus => _audio.ActiveEffectCount switch
+    {
+        0 => "SFX idle",
+        1 => "1 SFX active",
+        var count => $"{count} SFX active"
+    };
+
+    public string DuckingStatus => _audio.ActiveEffectCount > 0 ? "Ducking active" : "Ducking off";
 
     public string DataDirectory => _storage.DataDirectory;
 
@@ -1288,12 +1297,26 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         _audio.StopAll();
         SetMusicPaused(false);
+        NotifyEffectsPlaybackStatusChanged();
         IsPlaying = false;
     }
 
     private void StopEffects()
     {
         _audio.StopEffects();
+        NotifyEffectsPlaybackStatusChanged();
+    }
+
+    private void HandleEffectPlaybackCountChanged()
+    {
+        ApplyMusicVolume();
+        NotifyEffectsPlaybackStatusChanged();
+    }
+
+    private void NotifyEffectsPlaybackStatusChanged()
+    {
+        OnPropertyChanged(nameof(EffectsPlaybackStatus));
+        OnPropertyChanged(nameof(DuckingStatus));
     }
 
     private void SetMusicPaused(bool value)
