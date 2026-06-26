@@ -330,7 +330,7 @@
               </StackPanel>
             </Border>
 
-            <Border Grid.Row="2" Background="{Binding PanelAltBrush}" CornerRadius="7" Padding="8" Margin="0,10,0,0">
+            <Border Grid.Row="2" Background="{Binding PanelAltBrush}" CornerRadius="7" Padding="8" Margin="0,10,0,0" IsVisible="{Binding HasSelectedMusicTrack}">
               <Grid ColumnDefinitions="*,150,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
                 <TextBox Text="{Binding SelectedMusicTrackTitle}" PlaceholderText="Selected track title" />
                 <Slider Grid.Column="1" Minimum="0" Maximum="2" Value="{Binding SelectedMusicTrackVolume}" VerticalAlignment="Center" Margin="8,0" />
@@ -442,7 +442,7 @@
               </StackPanel>
             </Border>
 
-            <Border Grid.Row="2" Background="{Binding PanelAltBrush}" CornerRadius="7" Padding="8" Margin="0,10,0,0">
+            <Border Grid.Row="2" Background="{Binding PanelAltBrush}" CornerRadius="7" Padding="8" Margin="0,10,0,0" IsVisible="{Binding HasSelectedEffectTrack}">
               <Grid ColumnDefinitions="*,150,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
                 <TextBox Text="{Binding SelectedEffectTrackTitle}" PlaceholderText="Selected effect title" />
                 <Slider Grid.Column="1" Minimum="0" Maximum="2" Value="{Binding SelectedEffectTrackVolume}" VerticalAlignment="Center" Margin="8,0" />

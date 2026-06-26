@@ -253,6 +253,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(SelectedMusicHotkeyText));
                 OnPropertyChanged(nameof(SelectedMusicTrackFileStatus));
                 OnPropertyChanged(nameof(SelectedMusicTrackTile));
+                OnPropertyChanged(nameof(HasSelectedMusicTrack));
                 NotifyCommandStates();
             }
         }
@@ -270,6 +271,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(SelectedEffectHotkeyText));
                 OnPropertyChanged(nameof(SelectedEffectTrackFileStatus));
                 OnPropertyChanged(nameof(SelectedEffectTrackTile));
+                OnPropertyChanged(nameof(HasSelectedEffectTrack));
                 NotifyCommandStates();
             }
         }
@@ -307,6 +309,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool HasMusicTracks => MusicTracks.Count > 0;
     public bool HasEffectTracks => EffectTracks.Count > 0;
+    public bool HasSelectedMusicTrack => SelectedMusicTrack is not null;
+    public bool HasSelectedEffectTrack => SelectedEffectTrack is not null;
     public bool IsMusicTracksEmpty => !HasMusicTracks;
     public bool IsEffectTracksEmpty => !HasEffectTracks;
     public string MusicTrackCountText => TrackCountText(MusicTracks.Count, "track");

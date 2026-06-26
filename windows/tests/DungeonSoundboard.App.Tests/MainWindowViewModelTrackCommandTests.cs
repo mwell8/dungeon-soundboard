@@ -81,6 +81,29 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void SelectedTrackEditorFlagsFollowSelectionAvailability()
+    {
+        var music = new Track("Music", "C:\\audio\\music.mp3", TrackRole.Music);
+        var effect = new Track("Effect", "C:\\audio\\effect.wav", TrackRole.Effect);
+
+        using var emptyViewModel = CreateViewModel(StorageWith(new Playlist("Music"), new EffectPlaylist("SFX")));
+        Assert.False(emptyViewModel.HasSelectedMusicTrack);
+        Assert.False(emptyViewModel.HasSelectedEffectTrack);
+
+        using var populatedViewModel = CreateViewModel(
+            StorageWith(new Playlist("Music", [music]), new EffectPlaylist("SFX", [effect])));
+
+        Assert.True(populatedViewModel.HasSelectedMusicTrack);
+        Assert.True(populatedViewModel.HasSelectedEffectTrack);
+
+        populatedViewModel.DeleteMusicTrackItemCommand.Execute(music);
+        populatedViewModel.DeleteEffectTrackItemCommand.Execute(effect);
+
+        Assert.False(populatedViewModel.HasSelectedMusicTrack);
+        Assert.False(populatedViewModel.HasSelectedEffectTrack);
+    }
+
+    [Fact]
     public void MoveEffectTrackItemDownReordersRequestedEffect()
     {
         var first = new Track("First", "C:\\audio\\first.wav", TrackRole.Effect);
