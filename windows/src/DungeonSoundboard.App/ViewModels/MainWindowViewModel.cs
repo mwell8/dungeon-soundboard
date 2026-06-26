@@ -162,7 +162,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
             _state.Preferences.SelectedMusicPlaylistId = value?.Id;
             SelectedMusicTrack = value?.Tracks.FirstOrDefault();
-            OnPropertyChanged(nameof(MusicTracks));
+            NotifyMusicTracksChanged();
             OnPropertyChanged(nameof(SelectedMusicPlaylistName));
             Save();
             NotifyCommandStates();
@@ -181,7 +181,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
             _state.Preferences.SelectedEffectPlaylistId = value?.Id;
             SelectedEffectTrack = value?.Effects.FirstOrDefault();
-            OnPropertyChanged(nameof(EffectTracks));
+            NotifyEffectTracksChanged();
             OnPropertyChanged(nameof(SelectedEffectPlaylistName));
             Save();
             NotifyCommandStates();
@@ -198,6 +198,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(SelectedMusicTrackTitle));
                 OnPropertyChanged(nameof(SelectedMusicTrackVolume));
                 OnPropertyChanged(nameof(SelectedMusicHotkeyText));
+                OnPropertyChanged(nameof(SelectedMusicTrackFileStatus));
                 NotifyCommandStates();
             }
         }
@@ -213,6 +214,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(SelectedEffectTrackTitle));
                 OnPropertyChanged(nameof(SelectedEffectTrackVolume));
                 OnPropertyChanged(nameof(SelectedEffectHotkeyText));
+                OnPropertyChanged(nameof(SelectedEffectTrackFileStatus));
                 NotifyCommandStates();
             }
         }
@@ -220,6 +222,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<Track> MusicTracks => SelectedMusicPlaylist?.Tracks ?? [];
     public IReadOnlyList<Track> EffectTracks => SelectedEffectPlaylist?.Effects ?? [];
+    public bool HasMusicTracks => MusicTracks.Count > 0;
+    public bool HasEffectTracks => EffectTracks.Count > 0;
+    public bool IsMusicTracksEmpty => !HasMusicTracks;
+    public bool IsEffectTracksEmpty => !HasEffectTracks;
+    public string MusicTrackCountText => TrackCountText(MusicTracks.Count, "track");
+    public string EffectTrackCountText => TrackCountText(EffectTracks.Count, "effect");
 
     public string SelectedMusicPlaylistName
     {
@@ -260,7 +268,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             RenameTrack(SelectedMusicTrack, value);
-            OnPropertyChanged(nameof(MusicTracks));
+            NotifyMusicTracksChanged();
         }
     }
 
@@ -275,7 +283,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             RenameTrack(SelectedEffectTrack, value);
-            OnPropertyChanged(nameof(EffectTracks));
+            NotifyEffectTracksChanged();
         }
     }
 
@@ -327,6 +335,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public string CurrentTrackTitle => CurrentTrack?.Title ?? "Nothing is playing";
 
+    public string PlaybackStatus => IsPlaying ? "Playing" : "Paused / stopped";
+
     public string DataDirectory => _storage.DataDirectory;
 
     public string BackgroundImagePath => string.IsNullOrWhiteSpace(_state.Theme.Background.ImageOriginalPath)
@@ -345,6 +355,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ? "Select track"
         : HotkeyTextFor(HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id));
 
+    public string SelectedMusicTrackFileStatus => TrackFileStatus(SelectedMusicTrack);
+
+    public string SelectedEffectTrackFileStatus => TrackFileStatus(SelectedEffectTrack);
+
     public IReadOnlyList<HotkeyDisplayRow> SystemHotkeyRows => HotkeyAction.SystemActions
         .Select(action => new HotkeyDisplayRow(action, SystemActionName(action), HotkeyTextFor(action)))
         .ToList();
@@ -352,7 +366,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public bool IsPlaying
     {
         get => _isPlaying;
-        private set => SetProperty(ref _isPlaying, value);
+        private set
+        {
+            if (SetProperty(ref _isPlaying, value))
+            {
+                OnPropertyChanged(nameof(PlaybackStatus));
+            }
+        }
     }
 
     public string? ErrorMessage
@@ -675,7 +695,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 _playbackMusicPlaylist = SelectedMusicPlaylist;
             }
 
-            OnPropertyChanged(nameof(MusicTracks));
+            NotifyMusicTracksChanged();
             LastImportMessage = ImportMessage(result);
         }
         else
@@ -687,7 +707,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
             var result = _importService.BuildUniqueTracks(paths, role, SelectedEffectPlaylist.Effects, "SFX Playlists");
             SelectedEffectPlaylist.Effects.AddRange(result.AddedTracks);
-            OnPropertyChanged(nameof(EffectTracks));
+            NotifyEffectTracksChanged();
             LastImportMessage = ImportMessage(result);
         }
 
@@ -768,7 +788,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         SelectedMusicTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
-        OnPropertyChanged(nameof(MusicTracks));
+        NotifyMusicTracksChanged();
         Save();
     }
 
@@ -781,7 +801,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         SelectedEffectPlaylist.Effects.Remove(SelectedEffectTrack);
         SelectedEffectTrack = SelectedEffectPlaylist.Effects.FirstOrDefault();
-        OnPropertyChanged(nameof(EffectTracks));
+        NotifyEffectTracksChanged();
         Save();
     }
 
@@ -821,7 +841,19 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         tracks.RemoveAt(index);
         tracks.Insert(targetIndex, selected);
-        OnPropertyChanged(propertyName);
+        if (propertyName == nameof(MusicTracks))
+        {
+            NotifyMusicTracksChanged();
+        }
+        else if (propertyName == nameof(EffectTracks))
+        {
+            NotifyEffectTracksChanged();
+        }
+        else
+        {
+            OnPropertyChanged(propertyName);
+        }
+
         Save();
         NotifyCommandStates();
     }
@@ -1160,6 +1192,22 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         return _state.Hotkeys.HotkeyFor(action)?.DisplayText ?? "Unassigned";
     }
 
+    private static string TrackCountText(int count, string singular)
+    {
+        var suffix = count == 1 ? singular : $"{singular}s";
+        return $"{count} {suffix}";
+    }
+
+    private static string TrackFileStatus(Track? track)
+    {
+        if (track is null)
+        {
+            return "No track selected";
+        }
+
+        return File.Exists(track.Path) ? "File available" : "File missing";
+    }
+
     private static string SystemActionName(HotkeyAction action)
     {
         return action.Kind switch
@@ -1180,6 +1228,24 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SystemHotkeyRows));
         OnPropertyChanged(nameof(SelectedMusicHotkeyText));
         OnPropertyChanged(nameof(SelectedEffectHotkeyText));
+    }
+
+    private void NotifyMusicTracksChanged()
+    {
+        OnPropertyChanged(nameof(MusicTracks));
+        OnPropertyChanged(nameof(HasMusicTracks));
+        OnPropertyChanged(nameof(IsMusicTracksEmpty));
+        OnPropertyChanged(nameof(MusicTrackCountText));
+        OnPropertyChanged(nameof(SelectedMusicTrackFileStatus));
+    }
+
+    private void NotifyEffectTracksChanged()
+    {
+        OnPropertyChanged(nameof(EffectTracks));
+        OnPropertyChanged(nameof(HasEffectTracks));
+        OnPropertyChanged(nameof(IsEffectTracksEmpty));
+        OnPropertyChanged(nameof(EffectTrackCountText));
+        OnPropertyChanged(nameof(SelectedEffectTrackFileStatus));
     }
 
     private void RenamePlaylist(EffectPlaylist playlist, string value, string fallback)
