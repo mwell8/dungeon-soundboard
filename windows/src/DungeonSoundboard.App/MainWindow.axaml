@@ -135,9 +135,24 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <Border Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="6" Padding="10,8" Margin="0,2">
-                  <Grid ColumnDefinitions="*,Auto">
+                  <Border.ContextMenu>
+                    <ContextMenu DataContext="{Binding}">
+                      <MenuItem
+                          Header="Shuffle Play"
+                          Command="{Binding DataContext.PlayMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}" />
+                    </ContextMenu>
+                  </Border.ContextMenu>
+                  <Grid ColumnDefinitions="*,Auto,Auto">
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Tracks.Count}" Margin="10,0,0,0" />
+                    <Button
+                        Grid.Column="1"
+                        Classes="compact"
+                        Content="Shuffle"
+                        Command="{Binding DataContext.PlayMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding}"
+                        Margin="8,0,0,0" />
+                    <TextBlock Grid.Column="2" Classes="caption" Text="{Binding Tracks.Count}" Margin="10,0,0,0" VerticalAlignment="Center" />
                   </Grid>
                 </Border>
               </DataTemplate>

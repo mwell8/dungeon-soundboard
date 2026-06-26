@@ -137,6 +137,41 @@ public sealed class MainWindowViewModelTrackCommandTests
         Assert.True(audio.IsMusicPlaying);
     }
 
+    [Fact]
+    public void PlayMusicPlaylistItemSelectsPlaylistEnablesShuffleAndStartsTrack()
+    {
+        var firstPlaylist = new Playlist("First", [new Track("First Track", "C:\\audio\\first.mp3", TrackRole.Music)]);
+        var targetTrack = new Track("Boss Theme", "C:\\audio\\boss.mp3", TrackRole.Music);
+        var secondPlaylist = new Playlist("Boss", [targetTrack]);
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(StorageWithMusicPlaylists([firstPlaylist, secondPlaylist]), audio);
+
+        viewModel.PlayMusicPlaylistItemCommand.Execute(secondPlaylist);
+
+        Assert.Equal(secondPlaylist.Id, viewModel.SelectedMusicPlaylist?.Id);
+        Assert.Equal(targetTrack.Id, viewModel.SelectedMusicTrack?.Id);
+        Assert.Equal(targetTrack.Id, viewModel.CurrentTrack?.Id);
+        Assert.Equal(targetTrack.Id, audio.LastMusicTrack?.Id);
+        Assert.True(viewModel.ShuffleEnabled);
+        Assert.True(viewModel.IsPlaying);
+    }
+
+    [Fact]
+    public void PlayMusicPlaylistItemWithEmptyPlaylistSelectsPlaylistWithoutStartingAudio()
+    {
+        var firstPlaylist = new Playlist("First", [new Track("First Track", "C:\\audio\\first.mp3", TrackRole.Music)]);
+        var emptyPlaylist = new Playlist("Empty");
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(StorageWithMusicPlaylists([firstPlaylist, emptyPlaylist]), audio);
+
+        viewModel.PlayMusicPlaylistItemCommand.Execute(emptyPlaylist);
+
+        Assert.Equal(emptyPlaylist.Id, viewModel.SelectedMusicPlaylist?.Id);
+        Assert.True(viewModel.ShuffleEnabled);
+        Assert.Null(audio.LastMusicTrack);
+        Assert.False(viewModel.IsPlaying);
+    }
+
     private static MainWindowViewModel CreateViewModel(FakeStorageService storage)
     {
         return CreateViewModel(storage, new FakeAudioService());
@@ -156,6 +191,23 @@ public sealed class MainWindowViewModelTrackCommandTests
             Preferences = new PlayerPreferences
             {
                 SelectedMusicPlaylistId = musicPlaylist.Id,
+                SelectedEffectPlaylistId = effectPlaylist.Id
+            }
+        };
+
+        return new FakeStorageService(state);
+    }
+
+    private static FakeStorageService StorageWithMusicPlaylists(IReadOnlyList<Playlist> musicPlaylists)
+    {
+        var effectPlaylist = new EffectPlaylist("SFX");
+        var state = new AppState
+        {
+            MusicPlaylists = musicPlaylists.ToList(),
+            EffectPlaylists = [effectPlaylist],
+            Preferences = new PlayerPreferences
+            {
+                SelectedMusicPlaylistId = musicPlaylists[0].Id,
                 SelectedEffectPlaylistId = effectPlaylist.Id
             }
         };

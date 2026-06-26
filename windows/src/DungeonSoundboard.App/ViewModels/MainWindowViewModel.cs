@@ -90,6 +90,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         MoveMusicPlaylistDownCommand = new RelayCommand(() => MoveSelectedPlaylist(MusicPlaylists, SelectedMusicPlaylist, 1), () => CanMove(MusicPlaylists, SelectedMusicPlaylist, 1));
         MoveEffectPlaylistUpCommand = new RelayCommand(() => MoveSelectedPlaylist(EffectPlaylists, SelectedEffectPlaylist, -1), () => CanMove(EffectPlaylists, SelectedEffectPlaylist, -1));
         MoveEffectPlaylistDownCommand = new RelayCommand(() => MoveSelectedPlaylist(EffectPlaylists, SelectedEffectPlaylist, 1), () => CanMove(EffectPlaylists, SelectedEffectPlaylist, 1));
+        PlayMusicPlaylistItemCommand = new RelayCommand<Playlist>(PlayMusicPlaylistItem);
         AddMusicFilesCommand = new AsyncRelayCommand(AddMusicFilesAsync);
         AddMusicFolderCommand = new AsyncRelayCommand(AddMusicFolderAsync);
         AddEffectFilesCommand = new AsyncRelayCommand(AddEffectFilesAsync);
@@ -148,6 +149,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand MoveMusicPlaylistDownCommand { get; }
     public IRelayCommand MoveEffectPlaylistUpCommand { get; }
     public IRelayCommand MoveEffectPlaylistDownCommand { get; }
+    public IRelayCommand<Playlist> PlayMusicPlaylistItemCommand { get; }
     public IAsyncRelayCommand AddMusicFilesCommand { get; }
     public IAsyncRelayCommand AddMusicFolderCommand { get; }
     public IAsyncRelayCommand AddEffectFilesCommand { get; }
@@ -1111,6 +1113,28 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             IsPlaying = false;
             ErrorMessage = $"Failed to play file: {track.Title}. {ex.Message}";
         }
+    }
+
+    private void PlayMusicPlaylistItem(Playlist? playlist)
+    {
+        var targetPlaylist = playlist is null
+            ? null
+            : MusicPlaylists.FirstOrDefault(candidate => candidate.Id == playlist.Id);
+        if (targetPlaylist is null)
+        {
+            return;
+        }
+
+        SelectedMusicPlaylist = targetPlaylist;
+        ShuffleEnabled = true;
+        if (targetPlaylist.Tracks.Count == 0)
+        {
+            return;
+        }
+
+        var track = targetPlaylist.Tracks[_random.Next(targetPlaylist.Tracks.Count)];
+        SelectedMusicTrack = track;
+        PlayMusicTrack(targetPlaylist, track);
     }
 
     private void PlayMusicTrackTile(TrackTileViewModel? tile)
