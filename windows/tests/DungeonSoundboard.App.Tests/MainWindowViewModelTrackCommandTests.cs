@@ -329,6 +329,35 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void HotkeyStartedMusicShowsPlaybackPlaylistWithoutChangingSelectedPlaylist()
+    {
+        var selectedPlaylist = new Playlist("Selected", [new Track("Selected Track", "C:\\audio\\selected.mp3", TrackRole.Music)]);
+        var targetTrack = new Track("Boss Theme", "C:\\audio\\boss.mp3", TrackRole.Music);
+        var hotkeyPlaylist = new Playlist("Boss", [targetTrack]);
+        var hotkey = new Hotkey(0, "A", HotkeyModifier.None);
+        var storage = StorageWithMusicPlaylists(
+            [selectedPlaylist, hotkeyPlaylist],
+            new HotkeyConfiguration(
+            [
+                new HotkeyBinding(HotkeyAction.PlayMusicTrack(hotkeyPlaylist.Id, targetTrack.Id), hotkey)
+            ]));
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(storage, audio);
+        var changedProperties = new List<string>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName ?? "");
+
+        Assert.Equal("Selected", viewModel.CurrentPlaybackPlaylistName);
+
+        Assert.True(viewModel.HandleHotkey(hotkey));
+
+        Assert.Equal(selectedPlaylist.Id, viewModel.SelectedMusicPlaylist?.Id);
+        Assert.Equal(targetTrack.Id, viewModel.CurrentTrack?.Id);
+        Assert.Equal(targetTrack.Id, audio.LastMusicTrack?.Id);
+        Assert.Equal("Boss", viewModel.CurrentPlaybackPlaylistName);
+        Assert.Contains(nameof(MainWindowViewModel.CurrentPlaybackPlaylistName), changedProperties);
+    }
+
+    [Fact]
     public void DeleteMusicPlaylistItemRemovesRequestedPlaylistWithoutChangingOtherSelection()
     {
         var selectedPlaylist = new Playlist("Selected", [new Track("Selected Track", "C:\\audio\\selected.mp3", TrackRole.Music)]);
@@ -403,7 +432,9 @@ public sealed class MainWindowViewModelTrackCommandTests
         return new FakeStorageService(state);
     }
 
-    private static FakeStorageService StorageWithMusicPlaylists(IReadOnlyList<Playlist> musicPlaylists)
+    private static FakeStorageService StorageWithMusicPlaylists(
+        IReadOnlyList<Playlist> musicPlaylists,
+        HotkeyConfiguration? hotkeys = null)
     {
         var effectPlaylist = new EffectPlaylist("SFX");
         var state = new AppState
@@ -414,7 +445,8 @@ public sealed class MainWindowViewModelTrackCommandTests
             {
                 SelectedMusicPlaylistId = musicPlaylists[0].Id,
                 SelectedEffectPlaylistId = effectPlaylist.Id
-            }
+            },
+            Hotkeys = hotkeys ?? HotkeyConfiguration.Defaults
         };
 
         return new FakeStorageService(state);

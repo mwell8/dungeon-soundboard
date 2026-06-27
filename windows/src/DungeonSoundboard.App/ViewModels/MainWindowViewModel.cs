@@ -217,6 +217,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             SelectedMusicTrack = value?.Tracks.FirstOrDefault();
             NotifyMusicTracksChanged();
             OnPropertyChanged(nameof(SelectedMusicPlaylistName));
+            OnPropertyChanged(nameof(CurrentPlaybackPlaylistName));
             Save();
             NotifyCommandStates();
         }
@@ -425,6 +426,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     public string CurrentTrackTitle => CurrentTrack?.Title ?? "Nothing is playing";
+
+    public string CurrentPlaybackPlaylistName => (_playbackMusicPlaylist ?? SelectedMusicPlaylist)?.Name ?? "No playlist selected";
 
     public string PlaybackStatus => IsPlaying ? "Playing" : "Paused / stopped";
 
@@ -915,8 +918,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             SelectedMusicPlaylist.Tracks.AddRange(result.AddedTracks);
             if (CurrentTrack is null)
             {
+                SetPlaybackMusicPlaylist(SelectedMusicPlaylist);
                 CurrentTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
-                _playbackMusicPlaylist = SelectedMusicPlaylist;
             }
 
             NotifyMusicTracksChanged();
@@ -1195,8 +1198,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
+            SetPlaybackMusicPlaylist(playlist);
             CurrentTrack = track;
-            _playbackMusicPlaylist = playlist;
             _audio.PlayMusic(track, CurrentMusicOutputVolume());
             SetMusicPaused(false);
             IsPlaying = true;
@@ -1321,6 +1324,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         ApplyMusicVolume();
         NotifyEffectsPlaybackStatusChanged();
+    }
+
+    private void SetPlaybackMusicPlaylist(Playlist? playlist)
+    {
+        if (_playbackMusicPlaylist?.Id == playlist?.Id)
+        {
+            _playbackMusicPlaylist = playlist;
+            return;
+        }
+
+        _playbackMusicPlaylist = playlist;
+        OnPropertyChanged(nameof(CurrentPlaybackPlaylistName));
     }
 
     private void NotifyEffectsPlaybackStatusChanged()
