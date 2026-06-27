@@ -563,6 +563,67 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void RequestDeletePlaylistItemShowsConfirmationAndCancelKeepsPlaylist()
+    {
+        var selectedPlaylist = new Playlist("Selected", [new Track("Selected Track", "C:\\audio\\selected.mp3", TrackRole.Music)]);
+        var removedPlaylist = new Playlist("Remove Me", [new Track("Removed Track", "C:\\audio\\removed.mp3", TrackRole.Music)]);
+        var storage = StorageWithMusicPlaylists([selectedPlaylist, removedPlaylist]);
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.RequestDeleteMusicPlaylistItemCommand.Execute(removedPlaylist);
+
+        Assert.True(viewModel.IsDeleteConfirmationVisible);
+        Assert.Equal("Delete music playlist?", viewModel.DeleteConfirmationTitle);
+        Assert.Contains("Remove Me", viewModel.DeleteConfirmationMessage);
+
+        viewModel.CancelDeleteCommand.Execute(null);
+
+        Assert.False(viewModel.IsDeleteConfirmationVisible);
+        Assert.Equal(2, viewModel.MusicPlaylists.Count);
+        Assert.Contains(viewModel.MusicPlaylists, playlist => playlist.Id == removedPlaylist.Id);
+    }
+
+    [Fact]
+    public void ConfirmDeletePlaylistItemRemovesRequestedPlaylistWithoutChangingOtherSelection()
+    {
+        var selectedPlaylist = new Playlist("Selected", [new Track("Selected Track", "C:\\audio\\selected.mp3", TrackRole.Music)]);
+        var removedPlaylist = new Playlist("Remove Me", [new Track("Removed Track", "C:\\audio\\removed.mp3", TrackRole.Music)]);
+        var storage = StorageWithMusicPlaylists([selectedPlaylist, removedPlaylist]);
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.RequestDeleteMusicPlaylistItemCommand.Execute(removedPlaylist);
+        viewModel.ConfirmDeleteCommand.Execute(null);
+
+        Assert.False(viewModel.IsDeleteConfirmationVisible);
+        Assert.Single(viewModel.MusicPlaylists);
+        Assert.Equal(selectedPlaylist.Id, viewModel.MusicPlaylists[0].Id);
+        Assert.Equal(selectedPlaylist.Id, viewModel.SelectedMusicPlaylist?.Id);
+        Assert.True(storage.SaveCount > 0);
+    }
+
+    [Fact]
+    public void ConfirmDeleteEffectPlaylistItemRemovesRequestedPlaylist()
+    {
+        var selectedPlaylist = new EffectPlaylist("Selected");
+        var removedPlaylist = new EffectPlaylist("Remove Me");
+        var storage = StorageWithEffectPlaylists([selectedPlaylist, removedPlaylist]);
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.RequestDeleteEffectPlaylistItemCommand.Execute(removedPlaylist);
+
+        Assert.True(viewModel.IsDeleteConfirmationVisible);
+        Assert.Equal("Delete SFX playlist?", viewModel.DeleteConfirmationTitle);
+
+        viewModel.ConfirmDeleteCommand.Execute(null);
+
+        Assert.False(viewModel.IsDeleteConfirmationVisible);
+        Assert.Single(viewModel.EffectPlaylists);
+        Assert.Equal(selectedPlaylist.Id, viewModel.EffectPlaylists[0].Id);
+        Assert.Equal(selectedPlaylist.Id, viewModel.SelectedEffectPlaylist?.Id);
+        Assert.True(storage.SaveCount > 0);
+    }
+
+    [Fact]
     public void DeleteMusicPlaylistItemKeepsLastPlaylist()
     {
         var onlyPlaylist = new Playlist("Only", [new Track("Only Track", "C:\\audio\\only.mp3", TrackRole.Music)]);

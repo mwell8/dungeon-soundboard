@@ -171,7 +171,7 @@
             <Button Grid.Column="1" Classes="compact primary iconButton" ToolTip.Tip="Create music playlist" AutomationProperties.Name="Create music playlist" Command="{Binding CreateMusicPlaylistCommand}">
               <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
             </Button>
-            <Button Grid.Column="2" Classes="compact danger iconButton" ToolTip.Tip="Delete selected music playlist" AutomationProperties.Name="Delete selected music playlist" Command="{Binding DeleteMusicPlaylistCommand}">
+            <Button Grid.Column="2" Classes="compact danger iconButton" ToolTip.Tip="Delete selected music playlist" AutomationProperties.Name="Delete selected music playlist" Command="{Binding RequestDeleteMusicPlaylistCommand}">
               <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
             </Button>
             <Button Grid.Column="3" Classes="compact iconButton" ToolTip.Tip="Move selected music playlist up" AutomationProperties.Name="Move selected music playlist up" Command="{Binding MoveMusicPlaylistUpCommand}">
@@ -204,7 +204,7 @@
                       <Separator />
                       <MenuItem
                           Header="Delete"
-                          Command="{Binding DataContext.DeleteMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          Command="{Binding DataContext.RequestDeleteMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                           CommandParameter="{Binding}" />
                     </ContextMenu>
                   </Border.ContextMenu>
@@ -235,7 +235,7 @@
             <Button Grid.Column="1" Classes="compact primary iconButton" ToolTip.Tip="Create SFX playlist" AutomationProperties.Name="Create SFX playlist" Command="{Binding CreateEffectPlaylistCommand}">
               <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
             </Button>
-            <Button Grid.Column="2" Classes="compact danger iconButton" ToolTip.Tip="Delete selected SFX playlist" AutomationProperties.Name="Delete selected SFX playlist" Command="{Binding DeleteEffectPlaylistCommand}">
+            <Button Grid.Column="2" Classes="compact danger iconButton" ToolTip.Tip="Delete selected SFX playlist" AutomationProperties.Name="Delete selected SFX playlist" Command="{Binding RequestDeleteEffectPlaylistCommand}">
               <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
             </Button>
             <Button Grid.Column="3" Classes="compact iconButton" ToolTip.Tip="Move selected SFX playlist up" AutomationProperties.Name="Move selected SFX playlist up" Command="{Binding MoveEffectPlaylistUpCommand}">
@@ -263,7 +263,7 @@
                       <Separator />
                       <MenuItem
                           Header="Delete"
-                          Command="{Binding DataContext.DeleteEffectPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                          Command="{Binding DataContext.RequestDeleteEffectPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                           CommandParameter="{Binding}" />
                     </ContextMenu>
                   </Border.ContextMenu>
