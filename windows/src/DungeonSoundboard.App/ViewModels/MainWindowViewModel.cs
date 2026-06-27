@@ -27,6 +27,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private Playlist? _playbackMusicPlaylist;
     private bool _isPlaying;
     private bool _isMusicPaused;
+    private bool _isMusicDropTargetActive;
+    private bool _isEffectDropTargetActive;
     private string? _errorMessage;
     private string _lastImportMessage = "";
     private HotkeyAction? _captureAction;
@@ -635,6 +637,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public IBrush StatusMessageBrush => IsStatusError ? DangerBrush : TextSecondaryBrush;
 
+    public bool IsMusicDropTargetActive
+    {
+        get => _isMusicDropTargetActive;
+        private set => SetProperty(ref _isMusicDropTargetActive, value);
+    }
+
+    public bool IsEffectDropTargetActive
+    {
+        get => _isEffectDropTargetActive;
+        private set => SetProperty(ref _isEffectDropTargetActive, value);
+    }
+
     public double MusicVolume
     {
         get => _state.Preferences.Volume;
@@ -821,12 +835,40 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public void ImportDroppedMusic(IEnumerable<string> paths)
     {
+        ClearDropTargets();
         ImportTracks(paths, TrackRole.Music);
     }
 
     public void ImportDroppedEffects(IEnumerable<string> paths)
     {
+        ClearDropTargets();
         ImportTracks(paths, TrackRole.Effect);
+    }
+
+    public void SetMusicDropTargetActive(bool isActive)
+    {
+        if (isActive)
+        {
+            IsEffectDropTargetActive = false;
+        }
+
+        IsMusicDropTargetActive = isActive;
+    }
+
+    public void SetEffectDropTargetActive(bool isActive)
+    {
+        if (isActive)
+        {
+            IsMusicDropTargetActive = false;
+        }
+
+        IsEffectDropTargetActive = isActive;
+    }
+
+    public void ClearDropTargets()
+    {
+        IsMusicDropTargetActive = false;
+        IsEffectDropTargetActive = false;
     }
 
     public bool HandleHotkey(Hotkey hotkey)

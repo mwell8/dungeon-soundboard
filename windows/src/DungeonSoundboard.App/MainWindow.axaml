@@ -118,6 +118,12 @@
       <Setter Property="Padding" Value="24" />
       <Setter Property="Margin" Value="4" />
     </Style>
+    <Style Selector="Border.dropOverlay">
+      <Setter Property="Background" Value="#B011151B" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="20" />
+    </Style>
     <Style Selector="TextBlock.emptyTitle">
       <Setter Property="FontSize" Value="18" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -275,7 +281,7 @@
       <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{Binding AccentBrush}" Opacity="0.42" />
 
       <Grid Grid.Column="2" RowDefinitions="*,10,*">
-        <Border Grid.Row="0" Background="{Binding PanelBrush}" CornerRadius="8" Padding="12" DragDrop.AllowDrop="True" DragDrop.DragOver="OnMusicDragOver" DragDrop.Drop="OnMusicDrop">
+        <Border Grid.Row="0" Background="{Binding PanelBrush}" CornerRadius="8" Padding="12" DragDrop.AllowDrop="True" DragDrop.DragEnter="OnMusicDragEnter" DragDrop.DragLeave="OnMusicDragLeave" DragDrop.DragOver="OnMusicDragOver" DragDrop.Drop="OnMusicDrop">
           <Grid RowDefinitions="Auto,*,Auto">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,10">
               <StackPanel>
@@ -407,12 +413,20 @@
                 <TextBlock Grid.Row="1" Grid.ColumnSpan="7" Classes="caption" Text="{Binding SelectedMusicTrackFileStatus}" Margin="4,4,0,0" />
               </Grid>
             </Border>
+
+            <Border Grid.RowSpan="3" Classes="dropOverlay" BorderBrush="{Binding AccentBrush}" IsVisible="{Binding IsMusicDropTargetActive}" IsHitTestVisible="False">
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                <PathIcon Width="28" Height="28" Foreground="{Binding AccentBrush}" Data="M5,20H19V18H5V20M19,9H15V3H9V9H5L12,16L19,9Z" />
+                <TextBlock Text="Drop music files" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Classes="caption" Text="Files will be added to the selected music playlist" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Border>
           </Grid>
         </Border>
 
         <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="{Binding AccentBrush}" Opacity="0.42" />
 
-        <Border Grid.Row="2" Background="{Binding PanelBrush}" CornerRadius="8" Padding="12" DragDrop.AllowDrop="True" DragDrop.DragOver="OnEffectDragOver" DragDrop.Drop="OnEffectDrop">
+        <Border Grid.Row="2" Background="{Binding PanelBrush}" CornerRadius="8" Padding="12" DragDrop.AllowDrop="True" DragDrop.DragEnter="OnEffectDragEnter" DragDrop.DragLeave="OnEffectDragLeave" DragDrop.DragOver="OnEffectDragOver" DragDrop.Drop="OnEffectDrop">
           <Grid RowDefinitions="Auto,*,Auto">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,10">
               <StackPanel>
@@ -536,6 +550,14 @@
                 <Button Grid.Column="6" Content="Cancel Bind" Command="{Binding CancelHotkeyCaptureCommand}" />
                 <TextBlock Grid.Row="1" Grid.ColumnSpan="7" Classes="caption" Text="{Binding SelectedEffectTrackFileStatus}" Margin="4,4,0,0" />
               </Grid>
+            </Border>
+
+            <Border Grid.RowSpan="3" Classes="dropOverlay" BorderBrush="{Binding AccentBrush}" IsVisible="{Binding IsEffectDropTargetActive}" IsHitTestVisible="False">
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                <PathIcon Width="28" Height="28" Foreground="{Binding AccentBrush}" Data="M5,20H19V18H5V20M19,9H15V3H9V9H5L12,16L19,9Z" />
+                <TextBlock Text="Drop SFX files" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Classes="caption" Text="Files will be added to the selected SFX playlist" HorizontalAlignment="Center" />
+              </StackPanel>
             </Border>
           </Grid>
         </Border>

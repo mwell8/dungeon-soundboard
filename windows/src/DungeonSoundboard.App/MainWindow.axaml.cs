@@ -57,22 +57,47 @@ public partial class MainWindow : Window
         await settingsWindow.ShowDialog(this);
     }
 
+    private void OnMusicDragEnter(object? sender, DragEventArgs e)
+    {
+        SetMusicDropTargetActive(e, HasFiles(e));
+    }
+
     private void OnMusicDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = HasFiles(e) ? DragDropEffects.Copy : DragDropEffects.None;
+        var hasFiles = HasFiles(e);
+        SetMusicDropTargetActive(e, hasFiles);
+        e.DragEffects = hasFiles ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
+    }
+
+    private void OnMusicDragLeave(object? sender, DragEventArgs e)
+    {
+        SetMusicDropTargetActive(e, false);
+    }
+
+    private void OnEffectDragEnter(object? sender, DragEventArgs e)
+    {
+        SetEffectDropTargetActive(e, HasFiles(e));
     }
 
     private void OnEffectDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = HasFiles(e) ? DragDropEffects.Copy : DragDropEffects.None;
+        var hasFiles = HasFiles(e);
+        SetEffectDropTargetActive(e, hasFiles);
+        e.DragEffects = hasFiles ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
+    }
+
+    private void OnEffectDragLeave(object? sender, DragEventArgs e)
+    {
+        SetEffectDropTargetActive(e, false);
     }
 
     private void OnMusicDrop(object? sender, DragEventArgs e)
     {
         if (DataContext is MainWindowViewModel viewModel)
         {
+            viewModel.SetMusicDropTargetActive(false);
             viewModel.ImportDroppedMusic(GetDroppedPaths(e));
         }
 
@@ -83,6 +108,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is MainWindowViewModel viewModel)
         {
+            viewModel.SetEffectDropTargetActive(false);
             viewModel.ImportDroppedEffects(GetDroppedPaths(e));
         }
 
@@ -225,6 +251,26 @@ public partial class MainWindow : Window
     private static bool HasFiles(DragEventArgs e)
     {
         return e.DataTransfer.Contains(DataFormat.File);
+    }
+
+    private void SetMusicDropTargetActive(DragEventArgs e, bool isActive)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.SetMusicDropTargetActive(isActive);
+        }
+
+        e.Handled = true;
+    }
+
+    private void SetEffectDropTargetActive(DragEventArgs e, bool isActive)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.SetEffectDropTargetActive(isActive);
+        }
+
+        e.Handled = true;
     }
 
     private static IEnumerable<string> GetDroppedPaths(DragEventArgs e)

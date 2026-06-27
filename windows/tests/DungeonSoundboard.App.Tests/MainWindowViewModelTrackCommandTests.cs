@@ -416,6 +416,34 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void DropTargetStateHighlightsOnlyOneDeckAndClearsAfterDrop()
+    {
+        using var viewModel = CreateViewModel(StorageWith(new Playlist("Music"), new EffectPlaylist("SFX")));
+        var changedProperties = new List<string>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName ?? "");
+
+        Assert.False(viewModel.IsMusicDropTargetActive);
+        Assert.False(viewModel.IsEffectDropTargetActive);
+
+        viewModel.SetMusicDropTargetActive(true);
+
+        Assert.True(viewModel.IsMusicDropTargetActive);
+        Assert.False(viewModel.IsEffectDropTargetActive);
+        Assert.Contains(nameof(MainWindowViewModel.IsMusicDropTargetActive), changedProperties);
+
+        viewModel.SetEffectDropTargetActive(true);
+
+        Assert.False(viewModel.IsMusicDropTargetActive);
+        Assert.True(viewModel.IsEffectDropTargetActive);
+        Assert.Contains(nameof(MainWindowViewModel.IsEffectDropTargetActive), changedProperties);
+
+        viewModel.ImportDroppedEffects([]);
+
+        Assert.False(viewModel.IsMusicDropTargetActive);
+        Assert.False(viewModel.IsEffectDropTargetActive);
+    }
+
+    [Fact]
     public void PlayMusicPlaylistItemSelectsPlaylistEnablesShuffleAndStartsTrack()
     {
         var firstPlaylist = new Playlist("First", [new Track("First Track", "C:\\audio\\first.mp3", TrackRole.Music)]);
