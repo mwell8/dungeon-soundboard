@@ -81,6 +81,39 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void ClearHotkeyCommandsAreEnabledOnlyWhenBindingsExist()
+    {
+        var music = new Track("Music", "C:\\audio\\music.mp3", TrackRole.Music);
+        var effect = new Track("Effect", "C:\\audio\\effect.wav", TrackRole.Effect);
+        var playlist = new Playlist("Music", [music]);
+        var effects = new EffectPlaylist("SFX", [effect]);
+        using var viewModel = CreateViewModel(StorageWith(playlist, effects));
+
+        Assert.True(viewModel.ClearSystemHotkeyCommand.CanExecute(HotkeyAction.PlayPause));
+        Assert.False(viewModel.ClearSystemHotkeyCommand.CanExecute(HotkeyAction.StopAll));
+        Assert.False(viewModel.ClearSelectedMusicBindingCommand.CanExecute(null));
+        Assert.False(viewModel.ClearSelectedEffectBindingCommand.CanExecute(null));
+
+        viewModel.BindSelectedMusicCommand.Execute(null);
+        Assert.True(viewModel.HandleHotkey(new Hotkey(0, "A", HotkeyModifier.None)));
+        viewModel.BindSelectedEffectCommand.Execute(null);
+        Assert.True(viewModel.HandleHotkey(new Hotkey(1, "B", HotkeyModifier.None)));
+
+        Assert.True(viewModel.ClearSelectedMusicBindingCommand.CanExecute(null));
+        Assert.True(viewModel.ClearSelectedEffectBindingCommand.CanExecute(null));
+
+        viewModel.ClearSelectedMusicBindingCommand.Execute(null);
+        viewModel.ClearSelectedEffectBindingCommand.Execute(null);
+
+        Assert.False(viewModel.ClearSelectedMusicBindingCommand.CanExecute(null));
+        Assert.False(viewModel.ClearSelectedEffectBindingCommand.CanExecute(null));
+
+        viewModel.ClearSystemHotkeyCommand.Execute(HotkeyAction.PlayPause);
+
+        Assert.False(viewModel.ClearSystemHotkeyCommand.CanExecute(HotkeyAction.PlayPause));
+    }
+
+    [Fact]
     public void SelectedTrackEditorFlagsFollowSelectionAvailability()
     {
         var music = new Track("Music", "C:\\audio\\music.mp3", TrackRole.Music);

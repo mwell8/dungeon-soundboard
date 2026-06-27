@@ -137,10 +137,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         BindMusicTrackItemCommand = new RelayCommand<Track>(BeginBindMusicTrack);
         BindEffectTrackItemCommand = new RelayCommand<Track>(BeginBindEffectTrack);
         BindSystemHotkeyCommand = new RelayCommand<HotkeyAction>(BeginBindSystemHotkey);
-        ClearSystemHotkeyCommand = new RelayCommand<HotkeyAction>(ClearSystemHotkey);
+        ClearSystemHotkeyCommand = new RelayCommand<HotkeyAction>(ClearSystemHotkey, CanClearSystemHotkey);
         CancelHotkeyCaptureCommand = new RelayCommand(CancelHotkeyCapture, () => CaptureAction is not null);
-        ClearSelectedMusicBindingCommand = new RelayCommand(ClearSelectedMusicBinding, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
-        ClearSelectedEffectBindingCommand = new RelayCommand(ClearSelectedEffectBinding, () => SelectedEffectPlaylist is not null && SelectedEffectTrack is not null);
+        ClearSelectedMusicBindingCommand = new RelayCommand(ClearSelectedMusicBinding, CanClearSelectedMusicBinding);
+        ClearSelectedEffectBindingCommand = new RelayCommand(ClearSelectedEffectBinding, CanClearSelectedEffectBinding);
         ClearMusicTrackItemBindingCommand = new RelayCommand<Track>(ClearMusicTrackBinding);
         ClearEffectTrackItemBindingCommand = new RelayCommand<Track>(ClearEffectTrackBinding);
         ChooseBackgroundImageCommand = new AsyncRelayCommand(ChooseBackgroundImageAsync);
@@ -1543,6 +1543,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         Save();
     }
 
+    private bool CanClearSystemHotkey(HotkeyAction? action)
+    {
+        return action is not null && _state.Hotkeys.HotkeyFor(action) is not null;
+    }
+
     private void CancelHotkeyCapture()
     {
         CaptureAction = null;
@@ -1553,9 +1558,29 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ClearMusicTrackBinding(SelectedMusicTrack);
     }
 
+    private bool CanClearSelectedMusicBinding()
+    {
+        if (SelectedMusicPlaylist is null || SelectedMusicTrack is null)
+        {
+            return false;
+        }
+
+        return _state.Hotkeys.HotkeyFor(HotkeyAction.PlayMusicTrack(SelectedMusicPlaylist.Id, SelectedMusicTrack.Id)) is not null;
+    }
+
     private void ClearSelectedEffectBinding()
     {
         ClearEffectTrackBinding(SelectedEffectTrack);
+    }
+
+    private bool CanClearSelectedEffectBinding()
+    {
+        if (SelectedEffectPlaylist is null || SelectedEffectTrack is null)
+        {
+            return false;
+        }
+
+        return _state.Hotkeys.HotkeyFor(HotkeyAction.PlayEffect(SelectedEffectPlaylist.Id, SelectedEffectTrack.Id)) is not null;
     }
 
     private void ClearMusicTrackBinding(Track? track)
@@ -1824,6 +1849,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedEffectTrackTile));
         OnPropertyChanged(nameof(SelectedMusicHotkeyText));
         OnPropertyChanged(nameof(SelectedEffectHotkeyText));
+        ClearSystemHotkeyCommand?.NotifyCanExecuteChanged();
+        ClearSelectedMusicBindingCommand?.NotifyCanExecuteChanged();
+        ClearSelectedEffectBindingCommand?.NotifyCanExecuteChanged();
     }
 
     private void NotifyBackgroundChanged()
