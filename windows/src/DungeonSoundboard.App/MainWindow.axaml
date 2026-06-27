@@ -411,6 +411,10 @@
                     <Border.ContextMenu>
                       <ContextMenu DataContext="{Binding}">
                         <MenuItem Header="Play" Tag="{Binding Track}" Click="OnPlayMusicTrackMenuClick" />
+                        <MenuItem
+                            Header="Open File Location"
+                            Command="{Binding DataContext.OpenTrackLocationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding Track}" />
                         <MenuItem Header="Bind Hotkey" Tag="{Binding Track}" Click="OnBindMusicTrackMenuClick" />
                         <MenuItem Header="Clear Hotkey" Tag="{Binding Track}" Click="OnClearMusicTrackHotkeyMenuClick" />
                         <Separator />
@@ -563,6 +567,10 @@
                     <Border.ContextMenu>
                       <ContextMenu DataContext="{Binding}">
                         <MenuItem Header="Play SFX" Tag="{Binding Track}" Click="OnPlayEffectTrackMenuClick" />
+                        <MenuItem
+                            Header="Open File Location"
+                            Command="{Binding DataContext.OpenTrackLocationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding Track}" />
                         <MenuItem Header="Bind Hotkey" Tag="{Binding Track}" Click="OnBindEffectTrackMenuClick" />
                         <MenuItem Header="Clear Hotkey" Tag="{Binding Track}" Click="OnClearEffectTrackHotkeyMenuClick" />
                         <Separator />

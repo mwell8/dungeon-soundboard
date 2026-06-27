@@ -162,6 +162,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ChooseBackgroundImageCommand = new AsyncRelayCommand(ChooseBackgroundImageAsync);
         ClearBackgroundImageCommand = new RelayCommand(ClearBackgroundImage, () => HasBackgroundImage);
         OpenDataDirectoryCommand = new RelayCommand(OpenDataDirectory);
+        OpenTrackLocationCommand = new RelayCommand<Track>(OpenTrackLocation);
     }
 
     public IFileDialogService? FileDialogService { get; set; }
@@ -238,6 +239,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand ChooseBackgroundImageCommand { get; }
     public IRelayCommand ClearBackgroundImageCommand { get; }
     public IRelayCommand OpenDataDirectoryCommand { get; }
+    public IRelayCommand<Track> OpenTrackLocationCommand { get; }
 
     public Playlist? SelectedMusicPlaylist
     {
@@ -1041,6 +1043,36 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
             ErrorMessage = $"Could not open data folder: {ex.Message}";
+        }
+    }
+
+    private void OpenTrackLocation(Track? track)
+    {
+        if (track is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(track.Path))
+            {
+                _externalLauncher.RevealFile(track.Path);
+                ErrorMessage = null;
+                return;
+            }
+
+            var directory = Path.GetDirectoryName(track.Path);
+            if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+            {
+                _externalLauncher.OpenFolder(directory);
+            }
+
+            ErrorMessage = $"Audio file is missing: {track.Path}";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            ErrorMessage = $"Could not open file location: {ex.Message}";
         }
     }
 

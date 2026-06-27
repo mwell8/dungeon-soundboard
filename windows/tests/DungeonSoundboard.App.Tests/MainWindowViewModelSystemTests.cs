@@ -24,13 +24,41 @@ public sealed class MainWindowViewModelSystemTests
         Directory.Delete(dataDirectory, recursive: true);
     }
 
+    [Fact]
+    public void OpenTrackLocationRevealsExistingAudioFile()
+    {
+        var dataDirectory = Path.Combine(Path.GetTempPath(), "DungeonSoundboardTests", Guid.NewGuid().ToString("N"));
+        var audioDirectory = Path.Combine(dataDirectory, "audio");
+        var audioPath = Path.Combine(audioDirectory, "ambience.mp3");
+        Directory.CreateDirectory(audioDirectory);
+        File.WriteAllText(audioPath, "");
+
+        var launcher = new FakeExternalLauncher();
+        var storage = new FakeStorageService(dataDirectory);
+        using var viewModel = new MainWindowViewModel(storage, new FileImportService(), new FakeAudioService(), launcher);
+        var track = new Track("Ambience", audioPath, TrackRole.Music);
+
+        viewModel.OpenTrackLocationCommand.Execute(track);
+
+        Assert.Equal(audioPath, launcher.LastRevealedFile);
+        Assert.Null(launcher.LastOpenedFolder);
+
+        Directory.Delete(dataDirectory, recursive: true);
+    }
+
     private sealed class FakeExternalLauncher : IExternalLauncher
     {
         public string? LastOpenedFolder { get; private set; }
+        public string? LastRevealedFile { get; private set; }
 
         public void OpenFolder(string path)
         {
             LastOpenedFolder = path;
+        }
+
+        public void RevealFile(string path)
+        {
+            LastRevealedFile = path;
         }
     }
 
