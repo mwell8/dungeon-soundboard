@@ -143,6 +143,8 @@ public sealed class MainWindowViewModelBackgroundTests
 
         public int ActiveEffectCount => 0;
         public bool IsMusicPlaying => false;
+        public TimeSpan MusicPosition => TimeSpan.Zero;
+        public TimeSpan MusicDuration => TimeSpan.Zero;
 
         public void Dispose()
         {
@@ -157,6 +159,10 @@ public sealed class MainWindowViewModelBackgroundTests
         }
 
         public void ResumeMusic()
+        {
+        }
+
+        public void SeekMusic(TimeSpan position)
         {
         }
 

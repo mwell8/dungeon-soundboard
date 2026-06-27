@@ -9,10 +9,13 @@ public interface IAudioService : IDisposable
 
     int ActiveEffectCount { get; }
     bool IsMusicPlaying { get; }
+    TimeSpan MusicPosition { get; }
+    TimeSpan MusicDuration { get; }
 
     void PlayMusic(Track track, double volume);
     void PauseMusic();
     void ResumeMusic();
+    void SeekMusic(TimeSpan position);
     void StopMusic();
     void StopAll();
     void StopEffects();

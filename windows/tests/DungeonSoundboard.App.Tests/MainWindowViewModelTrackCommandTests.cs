@@ -212,6 +212,34 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void PlaybackProgressReflectsAudioPositionAndSupportsSeek()
+    {
+        var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [track]);
+        var audio = new FakeAudioService
+        {
+            MusicPosition = TimeSpan.FromSeconds(65),
+            MusicDuration = TimeSpan.FromSeconds(185)
+        };
+        using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")), audio);
+        var changedProperties = new List<string>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName ?? "");
+
+        viewModel.RefreshPlaybackProgress();
+
+        Assert.Equal(65, viewModel.PlaybackPositionSeconds);
+        Assert.Equal(185, viewModel.PlaybackDurationSeconds);
+        Assert.Equal("01:05 / 03:05", viewModel.PlaybackTimeText);
+        Assert.Contains(nameof(MainWindowViewModel.PlaybackPositionSeconds), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.PlaybackDurationSeconds), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.PlaybackTimeText), changedProperties);
+
+        viewModel.PlaybackPositionSeconds = 90;
+
+        Assert.Equal(TimeSpan.FromSeconds(90), audio.LastSeekPosition);
+    }
+
+    [Fact]
     public void PlaybackFailureMarksStatusAsErrorUntilNextSuccessfulPlayback()
     {
         var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
@@ -504,6 +532,9 @@ public sealed class MainWindowViewModelTrackCommandTests
         public int PauseCount { get; private set; }
         public int ResumeCount { get; private set; }
         public bool ThrowOnPlayMusic { get; set; }
+        public TimeSpan MusicPosition { get; set; }
+        public TimeSpan MusicDuration { get; set; }
+        public TimeSpan? LastSeekPosition { get; private set; }
 
         public void Dispose()
         {
@@ -531,6 +562,12 @@ public sealed class MainWindowViewModelTrackCommandTests
         {
             IsMusicPlaying = true;
             ResumeCount++;
+        }
+
+        public void SeekMusic(TimeSpan position)
+        {
+            LastSeekPosition = position;
+            MusicPosition = position;
         }
 
         public void StopMusic()

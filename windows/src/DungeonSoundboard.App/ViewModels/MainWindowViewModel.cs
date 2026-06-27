@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DungeonSoundboard.App.Services;
@@ -15,6 +16,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly IStorageService _storage;
     private readonly IFileImportService _importService;
     private readonly IAudioService _audio;
+    private readonly DispatcherTimer _playbackProgressTimer;
     private readonly Random _random = new();
     private AppState _state;
     private Playlist? _selectedMusicPlaylist;
@@ -52,6 +54,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _audio = audio;
         _audio.MusicFinished += (_, _) => NextTrackFromPlaybackEnd();
         _audio.EffectPlaybackCountChanged += (_, _) => HandleEffectPlaybackCountChanged();
+        _playbackProgressTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _playbackProgressTimer.Tick += (_, _) => RefreshPlaybackProgress();
+        _playbackProgressTimer.Start();
 
         _state = _storage.Load();
         MusicPlaylists = new ObservableCollection<Playlist>(_state.MusicPlaylists);
@@ -432,6 +440,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string PlaybackStatus => IsPlaying ? "Playing" : "Paused / stopped";
 
     public string PlayPauseButtonText => IsPlaying ? "Pause" : _isMusicPaused ? "Resume" : "Play";
+
+    public double PlaybackPositionSeconds
+    {
+        get => Math.Max(0, _audio.MusicPosition.TotalSeconds);
+        set => SeekPlayback(value);
+    }
+
+    public double PlaybackDurationSeconds => Math.Max(0, _audio.MusicDuration.TotalSeconds);
+
+    public string PlaybackTimeText => $"{FormatPlaybackTime(_audio.MusicPosition)} / {FormatPlaybackTime(_audio.MusicDuration)}";
 
     public string EffectsPlaybackStatus => _audio.ActiveEffectCount switch
     {
@@ -830,8 +848,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    public void RefreshPlaybackProgress()
+    {
+        OnPropertyChanged(nameof(PlaybackPositionSeconds));
+        OnPropertyChanged(nameof(PlaybackDurationSeconds));
+        OnPropertyChanged(nameof(PlaybackTimeText));
+    }
+
     public void Dispose()
     {
+        _playbackProgressTimer.Stop();
         _audio.Dispose();
     }
 
@@ -1201,6 +1227,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             SetPlaybackMusicPlaylist(playlist);
             CurrentTrack = track;
             _audio.PlayMusic(track, CurrentMusicOutputVolume());
+            RefreshPlaybackProgress();
             SetMusicPaused(false);
             IsPlaying = true;
             ErrorMessage = null;
@@ -1311,6 +1338,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _audio.StopAll();
         SetMusicPaused(false);
         NotifyEffectsPlaybackStatusChanged();
+        RefreshPlaybackProgress();
         IsPlaying = false;
     }
 
@@ -1336,6 +1364,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         _playbackMusicPlaylist = playlist;
         OnPropertyChanged(nameof(CurrentPlaybackPlaylistName));
+    }
+
+    private void SeekPlayback(double seconds)
+    {
+        if (!double.IsFinite(seconds))
+        {
+            return;
+        }
+
+        _audio.SeekMusic(TimeSpan.FromSeconds(Math.Max(0, seconds)));
+        RefreshPlaybackProgress();
     }
 
     private void NotifyEffectsPlaybackStatusChanged()
@@ -1695,6 +1734,22 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         var suffix = count == 1 ? singular : $"{singular}s";
         return $"{count} {suffix}";
+    }
+
+    private static string FormatPlaybackTime(TimeSpan value)
+    {
+        if (value < TimeSpan.Zero)
+        {
+            value = TimeSpan.Zero;
+        }
+
+        var totalSeconds = (int)Math.Round(value.TotalSeconds);
+        var hours = totalSeconds / 3600;
+        var minutes = totalSeconds / 60 % 60;
+        var seconds = totalSeconds % 60;
+        return hours > 0
+            ? $"{hours}:{minutes:00}:{seconds:00}"
+            : $"{minutes:00}:{seconds:00}";
     }
 
     private static string TrackFileStatus(Track? track)

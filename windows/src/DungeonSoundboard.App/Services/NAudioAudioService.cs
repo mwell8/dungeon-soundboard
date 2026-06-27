@@ -29,6 +29,10 @@ public sealed class NAudioAudioService : IAudioService
 
     public bool IsMusicPlaying => _musicOutput?.PlaybackState == PlaybackState.Playing;
 
+    public TimeSpan MusicPosition => _musicReader?.CurrentTime ?? TimeSpan.Zero;
+
+    public TimeSpan MusicDuration => _musicReader?.TotalTime ?? TimeSpan.Zero;
+
     public void PlayMusic(Track track, double volume)
     {
         if (!File.Exists(track.Path))
@@ -55,6 +59,23 @@ public sealed class NAudioAudioService : IAudioService
     public void ResumeMusic()
     {
         _musicOutput?.Play();
+    }
+
+    public void SeekMusic(TimeSpan position)
+    {
+        if (_musicReader is null)
+        {
+            return;
+        }
+
+        var duration = _musicReader.TotalTime;
+        var clamped = position < TimeSpan.Zero ? TimeSpan.Zero : position;
+        if (duration > TimeSpan.Zero && clamped > duration)
+        {
+            clamped = duration;
+        }
+
+        _musicReader.CurrentTime = clamped;
     }
 
     public void StopMusic()
