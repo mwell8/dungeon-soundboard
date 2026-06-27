@@ -116,7 +116,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         PlayMusicTrackTileCommand = new RelayCommand<TrackTileViewModel>(PlayMusicTrackTile);
         PlayEffectTrackTileCommand = new RelayCommand<TrackTileViewModel>(PlayEffectTrackTile);
         PlayPauseCommand = new RelayCommand(PlayPause);
-        StopAllCommand = new RelayCommand(StopAll);
+        StopAllCommand = new RelayCommand(StopAll, CanStopAll);
         StopEffectsCommand = new RelayCommand(StopEffects, () => _audio.ActiveEffectCount > 0);
         NextTrackCommand = new RelayCommand(NextTrack);
         PreviousTrackCommand = new RelayCommand(PreviousTrack);
@@ -596,6 +596,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(PlaybackStatus));
                 OnPropertyChanged(nameof(PlayPauseButtonText));
                 OnPropertyChanged(nameof(PlayPauseIconData));
+                StopAllCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -1386,7 +1387,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(EffectsPlaybackStatus));
         OnPropertyChanged(nameof(DuckingStatus));
+        StopAllCommand.NotifyCanExecuteChanged();
         StopEffectsCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanStopAll()
+    {
+        return IsPlaying || _isMusicPaused || _audio.IsMusicPlaying || _audio.ActiveEffectCount > 0;
     }
 
     private void SetMusicPaused(bool value)
@@ -1399,6 +1406,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _isMusicPaused = value;
         OnPropertyChanged(nameof(PlayPauseButtonText));
         OnPropertyChanged(nameof(PlayPauseIconData));
+        StopAllCommand.NotifyCanExecuteChanged();
     }
 
     private void NextTrackFromPlaybackEnd()

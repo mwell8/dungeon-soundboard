@@ -217,6 +217,38 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void StopAllCommandIsEnabledOnlyWhenPlaybackCanBeStopped()
+    {
+        var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
+        var effect = new Track("Effect", "C:\\audio\\effect.wav", TrackRole.Effect);
+        var playlist = new Playlist("Music", [track]);
+        var effects = new EffectPlaylist("SFX", [effect]);
+        using var viewModel = CreateViewModel(StorageWith(playlist, effects));
+
+        Assert.False(viewModel.StopAllCommand.CanExecute(null));
+
+        viewModel.PlayMusicTrackCommand.Execute(track);
+
+        Assert.True(viewModel.StopAllCommand.CanExecute(null));
+
+        viewModel.PlayPauseCommand.Execute(null);
+
+        Assert.True(viewModel.StopAllCommand.CanExecute(null));
+
+        viewModel.StopAllCommand.Execute(null);
+
+        Assert.False(viewModel.StopAllCommand.CanExecute(null));
+
+        viewModel.PlayEffectCommand.Execute(effect);
+
+        Assert.True(viewModel.StopAllCommand.CanExecute(null));
+
+        viewModel.StopAllCommand.Execute(null);
+
+        Assert.False(viewModel.StopAllCommand.CanExecute(null));
+    }
+
+    [Fact]
     public void PlaybackProgressReflectsAudioPositionAndSupportsSeek()
     {
         var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
