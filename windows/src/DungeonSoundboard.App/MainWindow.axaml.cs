@@ -206,12 +206,12 @@ public partial class MainWindow : Window
         return sender is Control control ? control.DataContext as TrackTileViewModel : null;
     }
 
-    private static bool IsTileActionSource(object? source)
+    internal static bool IsTileActionSource(object? source)
     {
         var current = source as Control;
         while (current is not null)
         {
-            if (current.Classes.Contains("tileAction"))
+            if (current.Classes.Contains("tileAction") || current.Classes.Contains("tileIcon"))
             {
                 return true;
             }
