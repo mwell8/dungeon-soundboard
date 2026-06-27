@@ -32,6 +32,21 @@
       <Setter Property="Padding" Value="12,5" />
       <Setter Property="Margin" Value="2" />
     </Style>
+    <Style Selector="Button.compact">
+      <Setter Property="MinWidth" Value="30" />
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Padding" Value="7,3" />
+    </Style>
+    <Style Selector="Button.iconButton">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="MinWidth" Value="32" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Button.iconButton PathIcon">
+      <Setter Property="Width" Value="15" />
+      <Setter Property="Height" Value="15" />
+    </Style>
     <Style Selector="Button.primary">
       <Setter Property="Background" Value="{Binding Main.AccentBrush}" />
       <Setter Property="Foreground" Value="#11151B" />
@@ -156,8 +171,22 @@
                       <Grid ColumnDefinitions="*,110,Auto,Auto" Margin="0,3">
                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
                         <TextBlock Grid.Column="1" Classes="caption" Text="{Binding HotkeyText}" VerticalAlignment="Center" />
-                        <Button Grid.Column="2" Content="Bind" Command="{Binding DataContext.Main.BindSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Action}" />
-                        <Button Grid.Column="3" Content="Clear" Command="{Binding DataContext.Main.ClearSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Action}" />
+                        <Button Grid.Column="2"
+                                Classes="compact iconButton"
+                                ToolTip.Tip="Assign hotkey"
+                                AutomationProperties.Name="Assign hotkey"
+                                Command="{Binding DataContext.Main.BindSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Action}">
+                          <PathIcon Data="M7,14A4,4 0,1 1 10.7,8H21V11H19V13H16V15H13.7A4,4 0,0 1 7,14M7,16A2,2 0,1 0 7,12A2,2 0,0 0 7,16Z" />
+                        </Button>
+                        <Button Grid.Column="3"
+                                Classes="compact iconButton"
+                                ToolTip.Tip="Clear hotkey"
+                                AutomationProperties.Name="Clear hotkey"
+                                Command="{Binding DataContext.Main.ClearSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Action}">
+                          <PathIcon Data="M18.7,6.7L17.3,5.3L12,10.6L6.7,5.3L5.3,6.7L10.6,12L5.3,17.3L6.7,18.7L12,13.4L17.3,18.7L18.7,17.3L13.4,12L18.7,6.7Z" />
+                        </Button>
                       </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
@@ -169,18 +198,50 @@
                 <Grid ColumnDefinitions="*,110,Auto,Auto" RowDefinitions="Auto,Auto" RowSpacing="8">
                   <TextBlock Text="{Binding Main.SelectedMusicTrackTitle}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Main.SelectedMusicHotkeyText}" VerticalAlignment="Center" />
-                  <Button Grid.Column="2" Content="Bind Music" Command="{Binding Main.BindSelectedMusicCommand}" />
-                  <Button Grid.Column="3" Content="Clear" Command="{Binding Main.ClearSelectedMusicBindingCommand}" />
+                  <Button Grid.Column="2"
+                          Classes="compact iconButton"
+                          ToolTip.Tip="Assign selected music hotkey"
+                          AutomationProperties.Name="Assign selected music hotkey"
+                          Command="{Binding Main.BindSelectedMusicCommand}">
+                    <PathIcon Data="M7,14A4,4 0,1 1 10.7,8H21V11H19V13H16V15H13.7A4,4 0,0 1 7,14M7,16A2,2 0,1 0 7,12A2,2 0,0 0 7,16Z" />
+                  </Button>
+                  <Button Grid.Column="3"
+                          Classes="compact iconButton"
+                          ToolTip.Tip="Clear selected music hotkey"
+                          AutomationProperties.Name="Clear selected music hotkey"
+                          Command="{Binding Main.ClearSelectedMusicBindingCommand}">
+                    <PathIcon Data="M18.7,6.7L17.3,5.3L12,10.6L6.7,5.3L5.3,6.7L10.6,12L5.3,17.3L6.7,18.7L12,13.4L17.3,18.7L18.7,17.3L13.4,12L18.7,6.7Z" />
+                  </Button>
 
                   <TextBlock Grid.Row="1" Text="{Binding Main.SelectedEffectTrackTitle}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" Text="{Binding Main.SelectedEffectHotkeyText}" VerticalAlignment="Center" />
-                  <Button Grid.Row="1" Grid.Column="2" Content="Bind SFX" Command="{Binding Main.BindSelectedEffectCommand}" />
-                  <Button Grid.Row="1" Grid.Column="3" Content="Clear" Command="{Binding Main.ClearSelectedEffectBindingCommand}" />
+                  <Button Grid.Row="1"
+                          Grid.Column="2"
+                          Classes="compact iconButton"
+                          ToolTip.Tip="Assign selected SFX hotkey"
+                          AutomationProperties.Name="Assign selected SFX hotkey"
+                          Command="{Binding Main.BindSelectedEffectCommand}">
+                    <PathIcon Data="M7,14A4,4 0,1 1 10.7,8H21V11H19V13H16V15H13.7A4,4 0,0 1 7,14M7,16A2,2 0,1 0 7,12A2,2 0,0 0 7,16Z" />
+                  </Button>
+                  <Button Grid.Row="1"
+                          Grid.Column="3"
+                          Classes="compact iconButton"
+                          ToolTip.Tip="Clear selected SFX hotkey"
+                          AutomationProperties.Name="Clear selected SFX hotkey"
+                          Command="{Binding Main.ClearSelectedEffectBindingCommand}">
+                    <PathIcon Data="M18.7,6.7L17.3,5.3L12,10.6L6.7,5.3L5.3,6.7L10.6,12L5.3,17.3L6.7,18.7L12,13.4L17.3,18.7L18.7,17.3L13.4,12L18.7,6.7Z" />
+                  </Button>
                 </Grid>
               </StackPanel>
 
               <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Classes="danger" Content="Cancel Capture" Command="{Binding Main.CancelHotkeyCaptureCommand}" />
+                <Button Classes="compact danger iconButton"
+                        IsVisible="{Binding Main.IsCapturingHotkey}"
+                        ToolTip.Tip="Cancel hotkey capture"
+                        AutomationProperties.Name="Cancel hotkey capture"
+                        Command="{Binding Main.CancelHotkeyCaptureCommand}">
+                  <PathIcon Data="M18.7,6.7L17.3,5.3L12,10.6L6.7,5.3L5.3,6.7L10.6,12L5.3,17.3L6.7,18.7L12,13.4L17.3,18.7L18.7,17.3L13.4,12L18.7,6.7Z" />
+                </Button>
                 <TextBlock Classes="caption" Text="{Binding Main.CaptureStatus}" VerticalAlignment="Center" />
               </StackPanel>
             </StackPanel>
