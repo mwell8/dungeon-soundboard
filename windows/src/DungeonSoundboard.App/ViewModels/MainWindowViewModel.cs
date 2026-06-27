@@ -118,8 +118,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         PlayPauseCommand = new RelayCommand(PlayPause);
         StopAllCommand = new RelayCommand(StopAll, CanStopAll);
         StopEffectsCommand = new RelayCommand(StopEffects, () => _audio.ActiveEffectCount > 0);
-        NextTrackCommand = new RelayCommand(NextTrack);
-        PreviousTrackCommand = new RelayCommand(PreviousTrack);
+        NextTrackCommand = new RelayCommand(NextTrack, CanNavigateMusic);
+        PreviousTrackCommand = new RelayCommand(PreviousTrack, CanNavigateMusic);
         DeleteMusicTrackCommand = new RelayCommand(DeleteSelectedMusicTrack, () => SelectedMusicTrack is not null);
         DeleteEffectTrackCommand = new RelayCommand(DeleteSelectedEffectTrack, () => SelectedEffectTrack is not null);
         MoveMusicTrackUpCommand = new RelayCommand(() => MoveSelectedTrack(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, -1, nameof(MusicTracks)), () => CanMove(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, -1));
@@ -429,6 +429,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(MusicTrackTiles));
                 OnPropertyChanged(nameof(SelectedMusicTrackTile));
                 ApplyMusicVolume();
+                PreviousTrackCommand?.NotifyCanExecuteChanged();
+                NextTrackCommand?.NotifyCanExecuteChanged();
             }
         }
     }
@@ -1418,7 +1420,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void NextTrack()
     {
-        var playlist = _playbackMusicPlaylist ?? SelectedMusicPlaylist;
+        var playlist = NavigationMusicPlaylist();
         if (playlist is null || playlist.Tracks.Count == 0)
         {
             return;
@@ -1455,7 +1457,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void PreviousTrack()
     {
-        var playlist = _playbackMusicPlaylist ?? SelectedMusicPlaylist;
+        var playlist = NavigationMusicPlaylist();
         if (playlist is null || playlist.Tracks.Count == 0)
         {
             return;
@@ -1477,6 +1479,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             PlayMusicTrack(playlist, playlist.Tracks[0]);
         }
+    }
+
+    private bool CanNavigateMusic()
+    {
+        return NavigationMusicPlaylist()?.Tracks.Count > 0;
+    }
+
+    private Playlist? NavigationMusicPlaylist()
+    {
+        return CurrentTrack is null
+            ? SelectedMusicPlaylist
+            : _playbackMusicPlaylist ?? SelectedMusicPlaylist;
     }
 
     private void BeginBindSelectedMusic()
@@ -1832,6 +1846,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsMusicTracksEmpty));
         OnPropertyChanged(nameof(MusicTrackCountText));
         OnPropertyChanged(nameof(SelectedMusicTrackFileStatus));
+        PreviousTrackCommand?.NotifyCanExecuteChanged();
+        NextTrackCommand?.NotifyCanExecuteChanged();
     }
 
     private void NotifyEffectTracksChanged()

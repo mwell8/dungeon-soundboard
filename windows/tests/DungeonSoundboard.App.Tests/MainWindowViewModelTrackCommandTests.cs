@@ -249,6 +249,30 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void PreviousAndNextCommandsFollowAvailableMusicTracks()
+    {
+        var emptyPlaylist = new Playlist("Empty");
+        var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
+        var populatedPlaylist = new Playlist("Music", [track]);
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(StorageWithMusicPlaylists([emptyPlaylist, populatedPlaylist]), audio);
+
+        Assert.False(viewModel.PreviousTrackCommand.CanExecute(null));
+        Assert.False(viewModel.NextTrackCommand.CanExecute(null));
+
+        viewModel.SelectedMusicPlaylist = populatedPlaylist;
+
+        Assert.True(viewModel.PreviousTrackCommand.CanExecute(null));
+        Assert.True(viewModel.NextTrackCommand.CanExecute(null));
+
+        viewModel.NextTrackCommand.Execute(null);
+
+        Assert.Equal(track.Id, viewModel.CurrentTrack?.Id);
+        Assert.Equal(track.Id, audio.LastMusicTrack?.Id);
+        Assert.True(viewModel.IsPlaying);
+    }
+
+    [Fact]
     public void PlaybackProgressReflectsAudioPositionAndSupportsSeek()
     {
         var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
