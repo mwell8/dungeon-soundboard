@@ -16,6 +16,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly IStorageService _storage;
     private readonly IFileImportService _importService;
     private readonly IAudioService _audio;
+    private readonly IExternalLauncher _externalLauncher;
     private readonly DispatcherTimer _playbackProgressTimer;
     private readonly Random _random = new();
     private AppState _state;
@@ -47,15 +48,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private IBrush _textSecondaryBrush = Brushes.LightGray;
 
     public MainWindowViewModel()
-        : this(new JsonFileStorageService(), new FileImportService(), new NAudioAudioService())
+        : this(new JsonFileStorageService(), new FileImportService(), new NAudioAudioService(), new WindowsExternalLauncher())
     {
     }
 
-    public MainWindowViewModel(IStorageService storage, IFileImportService importService, IAudioService audio)
+    public MainWindowViewModel(IStorageService storage, IFileImportService importService, IAudioService audio, IExternalLauncher? externalLauncher = null)
     {
         _storage = storage;
         _importService = importService;
         _audio = audio;
+        _externalLauncher = externalLauncher ?? new WindowsExternalLauncher();
         _audio.MusicFinished += (_, _) => NextTrackFromPlaybackEnd();
         _audio.EffectPlaybackCountChanged += (_, _) => HandleEffectPlaybackCountChanged();
         _playbackProgressTimer = new DispatcherTimer
@@ -159,6 +161,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ClearEffectTrackItemBindingCommand = new RelayCommand<Track>(ClearEffectTrackBinding);
         ChooseBackgroundImageCommand = new AsyncRelayCommand(ChooseBackgroundImageAsync);
         ClearBackgroundImageCommand = new RelayCommand(ClearBackgroundImage, () => HasBackgroundImage);
+        OpenDataDirectoryCommand = new RelayCommand(OpenDataDirectory);
     }
 
     public IFileDialogService? FileDialogService { get; set; }
@@ -234,6 +237,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand<Track> ClearEffectTrackItemBindingCommand { get; }
     public IAsyncRelayCommand ChooseBackgroundImageCommand { get; }
     public IRelayCommand ClearBackgroundImageCommand { get; }
+    public IRelayCommand OpenDataDirectoryCommand { get; }
 
     public Playlist? SelectedMusicPlaylist
     {
@@ -1024,6 +1028,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _state.Theme.Background.BlurRadius = 0;
         UpdateThemeBrushes();
         Save();
+    }
+
+    private void OpenDataDirectory()
+    {
+        try
+        {
+            Directory.CreateDirectory(_storage.DataDirectory);
+            _externalLauncher.OpenFolder(_storage.DataDirectory);
+            ErrorMessage = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            ErrorMessage = $"Could not open data folder: {ex.Message}";
+        }
     }
 
     private void ImportTracks(IEnumerable<string> paths, TrackRole role)

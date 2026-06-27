@@ -253,7 +253,10 @@
             <StackPanel Spacing="14" Margin="2,10,8,8">
               <StackPanel Spacing="6">
                 <TextBlock Classes="sectionTitle" Text="Storage" />
-                <TextBlock Text="{Binding Main.DataDirectory}" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <TextBlock Text="{Binding Main.DataDirectory}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Content="Open Folder" Command="{Binding Main.OpenDataDirectoryCommand}" />
+                </Grid>
                 <TextBlock Classes="caption" Text="{Binding StorageFiles}" TextWrapping="Wrap" />
               </StackPanel>
 
