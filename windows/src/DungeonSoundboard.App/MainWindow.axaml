@@ -32,12 +32,26 @@
       <Setter Property="MinHeight" Value="28" />
       <Setter Property="Padding" Value="7,3" />
     </Style>
-    <Style Selector="Button.tileAction">
-      <Setter Property="MinWidth" Value="0" />
+    <Style Selector="Button.iconButton">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="MinWidth" Value="32" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Button.iconButton PathIcon">
+      <Setter Property="Width" Value="15" />
+      <Setter Property="Height" Value="15" />
+    </Style>
+    <Style Selector="Button.tileIcon">
+      <Setter Property="Width" Value="30" />
+      <Setter Property="MinWidth" Value="30" />
       <Setter Property="MinHeight" Value="24" />
-      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="Padding" Value="0" />
       <Setter Property="Margin" Value="0" />
-      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="Button.tileIcon PathIcon">
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
     </Style>
     <Style Selector="Button.transport">
       <Setter Property="Width" Value="38" />
@@ -148,10 +162,18 @@
               <TextBlock Text="Music Playlists" FontWeight="SemiBold" />
               <TextBlock Classes="caption" Text="Choose the playlist used by the music deck" />
             </StackPanel>
-            <Button Grid.Column="1" Classes="compact primary" Content="+" Command="{Binding CreateMusicPlaylistCommand}" />
-            <Button Grid.Column="2" Classes="compact danger" Content="-" Command="{Binding DeleteMusicPlaylistCommand}" />
-            <Button Grid.Column="3" Classes="compact" Content="Up" Command="{Binding MoveMusicPlaylistUpCommand}" />
-            <Button Grid.Column="4" Classes="compact" Content="Down" Command="{Binding MoveMusicPlaylistDownCommand}" />
+            <Button Grid.Column="1" Classes="compact primary iconButton" ToolTip.Tip="Create music playlist" AutomationProperties.Name="Create music playlist" Command="{Binding CreateMusicPlaylistCommand}">
+              <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+            </Button>
+            <Button Grid.Column="2" Classes="compact danger iconButton" ToolTip.Tip="Delete selected music playlist" AutomationProperties.Name="Delete selected music playlist" Command="{Binding DeleteMusicPlaylistCommand}">
+              <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
+            </Button>
+            <Button Grid.Column="3" Classes="compact iconButton" ToolTip.Tip="Move selected music playlist up" AutomationProperties.Name="Move selected music playlist up" Command="{Binding MoveMusicPlaylistUpCommand}">
+              <PathIcon Data="M7,14L12,9L17,14H7Z" />
+            </Button>
+            <Button Grid.Column="4" Classes="compact iconButton" ToolTip.Tip="Move selected music playlist down" AutomationProperties.Name="Move selected music playlist down" Command="{Binding MoveMusicPlaylistDownCommand}">
+              <PathIcon Data="M7,10L12,15L17,10H7Z" />
+            </Button>
           </Grid>
 
           <ListBox Grid.Row="1" ItemsSource="{Binding MusicPlaylists}" SelectedItem="{Binding SelectedMusicPlaylist}">
@@ -184,11 +206,14 @@
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                     <Button
                         Grid.Column="1"
-                        Classes="compact"
-                        Content="Shuffle"
+                        Classes="compact iconButton"
+                        ToolTip.Tip="Shuffle play this playlist"
+                        AutomationProperties.Name="Shuffle play this playlist"
                         Command="{Binding DataContext.PlayMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}"
-                        Margin="8,0,0,0" />
+                        Margin="8,0,0,0">
+                      <PathIcon Data="M10.6,9.2L5.4,4L4,5.4L9.2,10.6L10.6,9.2M14.8,4L16.9,6.1L4,19L5.4,20.4L18.3,7.5L20.4,9.6V4H14.8M14.8,14.8L13.4,16.2L16.8,19.6H14V21.6H21.6V14H19.6V16.8L14.8,14.8Z" />
+                    </Button>
                     <TextBlock Grid.Column="2" Classes="caption" Text="{Binding Tracks.Count}" Margin="10,0,0,0" VerticalAlignment="Center" />
                   </Grid>
                 </Border>
@@ -201,10 +226,18 @@
               <TextBlock Text="SFX Playlists" FontWeight="SemiBold" />
               <TextBlock Classes="caption" Text="Concurrent effects and stingers" />
             </StackPanel>
-            <Button Grid.Column="1" Classes="compact primary" Content="+" Command="{Binding CreateEffectPlaylistCommand}" />
-            <Button Grid.Column="2" Classes="compact danger" Content="-" Command="{Binding DeleteEffectPlaylistCommand}" />
-            <Button Grid.Column="3" Classes="compact" Content="Up" Command="{Binding MoveEffectPlaylistUpCommand}" />
-            <Button Grid.Column="4" Classes="compact" Content="Down" Command="{Binding MoveEffectPlaylistDownCommand}" />
+            <Button Grid.Column="1" Classes="compact primary iconButton" ToolTip.Tip="Create SFX playlist" AutomationProperties.Name="Create SFX playlist" Command="{Binding CreateEffectPlaylistCommand}">
+              <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+            </Button>
+            <Button Grid.Column="2" Classes="compact danger iconButton" ToolTip.Tip="Delete selected SFX playlist" AutomationProperties.Name="Delete selected SFX playlist" Command="{Binding DeleteEffectPlaylistCommand}">
+              <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
+            </Button>
+            <Button Grid.Column="3" Classes="compact iconButton" ToolTip.Tip="Move selected SFX playlist up" AutomationProperties.Name="Move selected SFX playlist up" Command="{Binding MoveEffectPlaylistUpCommand}">
+              <PathIcon Data="M7,14L12,9L17,14H7Z" />
+            </Button>
+            <Button Grid.Column="4" Classes="compact iconButton" ToolTip.Tip="Move selected SFX playlist down" AutomationProperties.Name="Move selected SFX playlist down" Command="{Binding MoveEffectPlaylistDownCommand}">
+              <PathIcon Data="M7,10L12,15L17,10H7Z" />
+            </Button>
           </Grid>
 
           <ListBox Grid.Row="4" ItemsSource="{Binding EffectPlaylists}" SelectedItem="{Binding SelectedEffectPlaylist}">
@@ -310,21 +343,27 @@
                         </Grid>
                         <TextBlock Grid.Row="1" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
-                          <Button Classes="tileAction primary"
-                                  Content="Play"
+                          <Button Classes="tileIcon primary"
                                   ToolTip.Tip="Play this music track"
+                                  AutomationProperties.Name="Play this music track"
                                   Command="{Binding DataContext.PlayMusicTrackCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                  CommandParameter="{Binding Track}" />
-                          <Button Classes="tileAction"
-                                  Content="Key"
+                                  CommandParameter="{Binding Track}">
+                            <PathIcon Data="M8,5V19L19,12L8,5Z" />
+                          </Button>
+                          <Button Classes="tileIcon"
                                   ToolTip.Tip="Assign a local hotkey to this track"
+                                  AutomationProperties.Name="Assign a local hotkey to this track"
                                   Command="{Binding DataContext.BindMusicTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                  CommandParameter="{Binding Track}" />
-                          <Button Classes="tileAction danger"
-                                  Content="Del"
+                                  CommandParameter="{Binding Track}">
+                            <PathIcon Data="M7,14A4,4 0,1 1 10.7,8H21V11H19V13H16V15H13.7A4,4 0,0 1 7,14M7,16A2,2 0,1 0 7,12A2,2 0,0 0 7,16Z" />
+                          </Button>
+                          <Button Classes="tileIcon danger"
                                   ToolTip.Tip="Delete this track from the playlist"
+                                  AutomationProperties.Name="Delete this track from the playlist"
                                   Command="{Binding DataContext.DeleteMusicTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                  CommandParameter="{Binding Track}" />
+                                  CommandParameter="{Binding Track}">
+                            <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
+                          </Button>
                         </StackPanel>
                       </Grid>
                     </Grid>
@@ -350,8 +389,12 @@
                 <Slider Grid.Column="1" Minimum="0" Maximum="2" Value="{Binding SelectedMusicTrackVolume}" VerticalAlignment="Center" Margin="8,0" />
                 <Button Grid.Column="2" Content="Bind" Command="{Binding BindSelectedMusicCommand}" />
                 <Button Grid.Column="3" Content="Clear" Command="{Binding ClearSelectedMusicBindingCommand}" />
-                <Button Grid.Column="4" Classes="compact" Content="Up" Command="{Binding MoveMusicTrackUpCommand}" />
-                <Button Grid.Column="5" Classes="compact" Content="Down" Command="{Binding MoveMusicTrackDownCommand}" />
+                <Button Grid.Column="4" Classes="compact iconButton" ToolTip.Tip="Move selected track up" AutomationProperties.Name="Move selected track up" Command="{Binding MoveMusicTrackUpCommand}">
+                  <PathIcon Data="M7,14L12,9L17,14H7Z" />
+                </Button>
+                <Button Grid.Column="5" Classes="compact iconButton" ToolTip.Tip="Move selected track down" AutomationProperties.Name="Move selected track down" Command="{Binding MoveMusicTrackDownCommand}">
+                  <PathIcon Data="M7,10L12,15L17,10H7Z" />
+                </Button>
                 <Button Grid.Column="6" Content="Cancel Bind" Command="{Binding CancelHotkeyCaptureCommand}" />
                 <TextBlock Grid.Row="1" Grid.ColumnSpan="7" Classes="caption" Text="{Binding SelectedMusicTrackFileStatus}" Margin="4,4,0,0" />
               </Grid>
@@ -423,21 +466,27 @@
                       </Grid>
                       <TextBlock Grid.Row="1" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
                       <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="0,2,0,0">
-                        <Button Classes="tileAction primary"
-                                Content="Play"
+                        <Button Classes="tileIcon primary"
                                 ToolTip.Tip="Play this SFX"
+                                AutomationProperties.Name="Play this SFX"
                                 Command="{Binding DataContext.PlayEffectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding Track}" />
-                        <Button Classes="tileAction"
-                                Content="Key"
+                                CommandParameter="{Binding Track}">
+                          <PathIcon Data="M8,5V19L19,12L8,5Z" />
+                        </Button>
+                        <Button Classes="tileIcon"
                                 ToolTip.Tip="Assign a local hotkey to this SFX"
+                                AutomationProperties.Name="Assign a local hotkey to this SFX"
                                 Command="{Binding DataContext.BindEffectTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding Track}" />
-                        <Button Classes="tileAction danger"
-                                Content="Del"
+                                CommandParameter="{Binding Track}">
+                          <PathIcon Data="M7,14A4,4 0,1 1 10.7,8H21V11H19V13H16V15H13.7A4,4 0,0 1 7,14M7,16A2,2 0,1 0 7,12A2,2 0,0 0 7,16Z" />
+                        </Button>
+                        <Button Classes="tileIcon danger"
                                 ToolTip.Tip="Delete this SFX from the playlist"
+                                AutomationProperties.Name="Delete this SFX from the playlist"
                                 Command="{Binding DataContext.DeleteEffectTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding Track}" />
+                                CommandParameter="{Binding Track}">
+                          <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
+                        </Button>
                       </StackPanel>
                     </Grid>
                   </Border>
@@ -462,8 +511,12 @@
                 <Slider Grid.Column="1" Minimum="0" Maximum="2" Value="{Binding SelectedEffectTrackVolume}" VerticalAlignment="Center" Margin="8,0" />
                 <Button Grid.Column="2" Content="Bind" Command="{Binding BindSelectedEffectCommand}" />
                 <Button Grid.Column="3" Content="Clear" Command="{Binding ClearSelectedEffectBindingCommand}" />
-                <Button Grid.Column="4" Classes="compact" Content="Up" Command="{Binding MoveEffectTrackUpCommand}" />
-                <Button Grid.Column="5" Classes="compact" Content="Down" Command="{Binding MoveEffectTrackDownCommand}" />
+                <Button Grid.Column="4" Classes="compact iconButton" ToolTip.Tip="Move selected SFX up" AutomationProperties.Name="Move selected SFX up" Command="{Binding MoveEffectTrackUpCommand}">
+                  <PathIcon Data="M7,14L12,9L17,14H7Z" />
+                </Button>
+                <Button Grid.Column="5" Classes="compact iconButton" ToolTip.Tip="Move selected SFX down" AutomationProperties.Name="Move selected SFX down" Command="{Binding MoveEffectTrackDownCommand}">
+                  <PathIcon Data="M7,10L12,15L17,10H7Z" />
+                </Button>
                 <Button Grid.Column="6" Content="Cancel Bind" Command="{Binding CancelHotkeyCaptureCommand}" />
                 <TextBlock Grid.Row="1" Grid.ColumnSpan="7" Classes="caption" Text="{Binding SelectedEffectTrackFileStatus}" Margin="4,4,0,0" />
               </Grid>
