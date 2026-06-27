@@ -357,6 +357,14 @@
                                   CommandParameter="{Binding Track}">
                             <PathIcon Data="M7,14A4,4 0,1 1 10.7,8H21V11H19V13H16V15H13.7A4,4 0,0 1 7,14M7,16A2,2 0,1 0 7,12A2,2 0,0 0 7,16Z" />
                           </Button>
+                          <Button Classes="tileIcon"
+                                  IsVisible="{Binding HasHotkey}"
+                                  ToolTip.Tip="Clear this track hotkey"
+                                  AutomationProperties.Name="Clear this track hotkey"
+                                  Command="{Binding DataContext.ClearMusicTrackItemBindingCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding Track}">
+                            <PathIcon Data="M18.7,6.7L17.3,5.3L12,10.6L6.7,5.3L5.3,6.7L10.6,12L5.3,17.3L6.7,18.7L12,13.4L17.3,18.7L18.7,17.3L13.4,12L18.7,6.7Z" />
+                          </Button>
                           <Button Classes="tileIcon danger"
                                   ToolTip.Tip="Delete this track from the playlist"
                                   AutomationProperties.Name="Delete this track from the playlist"
@@ -479,6 +487,14 @@
                                 Command="{Binding DataContext.BindEffectTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding Track}">
                           <PathIcon Data="M7,14A4,4 0,1 1 10.7,8H21V11H19V13H16V15H13.7A4,4 0,0 1 7,14M7,16A2,2 0,1 0 7,12A2,2 0,0 0 7,16Z" />
+                        </Button>
+                        <Button Classes="tileIcon"
+                                IsVisible="{Binding HasHotkey}"
+                                ToolTip.Tip="Clear this SFX hotkey"
+                                AutomationProperties.Name="Clear this SFX hotkey"
+                                Command="{Binding DataContext.ClearEffectTrackItemBindingCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Track}">
+                          <PathIcon Data="M18.7,6.7L17.3,5.3L12,10.6L6.7,5.3L5.3,6.7L10.6,12L5.3,17.3L6.7,18.7L12,13.4L17.3,18.7L18.7,17.3L13.4,12L18.7,6.7Z" />
                         </Button>
                         <Button Classes="tileIcon danger"
                                 ToolTip.Tip="Delete this SFX from the playlist"
