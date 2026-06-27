@@ -49,6 +49,10 @@
       <Setter Property="Width" Value="17" />
       <Setter Property="Height" Value="17" />
     </Style>
+    <Style Selector="Button.playPause PathIcon">
+      <Setter Property="Width" Value="15" />
+      <Setter Property="Height" Value="15" />
+    </Style>
     <Style Selector="Button.primary">
       <Setter Property="Background" Value="{Binding AccentBrush}" />
       <Setter Property="Foreground" Value="#11151B" />
@@ -483,11 +487,16 @@
                   Command="{Binding PreviousTrackCommand}">
             <PathIcon Data="M6,6H8V18H6V6M9,12L18,18V6L9,12Z" />
           </Button>
-          <Button Classes="primary"
-                  Width="92"
+          <Button Classes="primary playPause"
+                  Width="98"
                   MinHeight="36"
-                  Content="{Binding PlayPauseButtonText}"
-                  Command="{Binding PlayPauseCommand}" />
+                  ToolTip.Tip="{Binding PlayPauseButtonText}"
+                  Command="{Binding PlayPauseCommand}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+              <PathIcon Data="{Binding PlayPauseIconData}" />
+              <TextBlock Text="{Binding PlayPauseButtonText}" FontWeight="SemiBold" Foreground="#11151B" />
+            </StackPanel>
+          </Button>
           <Button Classes="compact transport"
                   ToolTip.Tip="Next track"
                   Command="{Binding NextTrackCommand}">

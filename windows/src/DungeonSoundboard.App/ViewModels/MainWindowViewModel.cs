@@ -441,6 +441,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public string PlayPauseButtonText => IsPlaying ? "Pause" : _isMusicPaused ? "Resume" : "Play";
 
+    public string PlayPauseIconData => IsPlaying
+        ? "M7,5H10V19H7V5M14,5H17V19H14V5Z"
+        : "M8,5V19L19,12L8,5Z";
+
     public double PlaybackPositionSeconds
     {
         get => Math.Max(0, _audio.MusicPosition.TotalSeconds);
@@ -591,6 +595,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(PlaybackStatus));
                 OnPropertyChanged(nameof(PlayPauseButtonText));
+                OnPropertyChanged(nameof(PlayPauseIconData));
             }
         }
     }
@@ -1393,6 +1398,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         _isMusicPaused = value;
         OnPropertyChanged(nameof(PlayPauseButtonText));
+        OnPropertyChanged(nameof(PlayPauseIconData));
     }
 
     private void NextTrackFromPlaybackEnd()

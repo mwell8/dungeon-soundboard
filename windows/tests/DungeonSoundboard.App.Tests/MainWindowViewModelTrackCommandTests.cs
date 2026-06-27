@@ -189,26 +189,31 @@ public sealed class MainWindowViewModelTrackCommandTests
         using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")), audio);
 
         Assert.Equal("Play", viewModel.PlayPauseButtonText);
+        Assert.Equal("M8,5V19L19,12L8,5Z", viewModel.PlayPauseIconData);
 
         viewModel.PlayMusicTrackCommand.Execute(track);
 
         Assert.Equal("Pause", viewModel.PlayPauseButtonText);
+        Assert.Equal("M7,5H10V19H7V5M14,5H17V19H14V5Z", viewModel.PlayPauseIconData);
         Assert.Equal(1, audio.PlayMusicCount);
 
         viewModel.PlayPauseCommand.Execute(null);
 
         Assert.Equal("Resume", viewModel.PlayPauseButtonText);
+        Assert.Equal("M8,5V19L19,12L8,5Z", viewModel.PlayPauseIconData);
         Assert.Equal(1, audio.PauseCount);
 
         viewModel.PlayPauseCommand.Execute(null);
 
         Assert.Equal("Pause", viewModel.PlayPauseButtonText);
+        Assert.Equal("M7,5H10V19H7V5M14,5H17V19H14V5Z", viewModel.PlayPauseIconData);
         Assert.Equal(1, audio.ResumeCount);
         Assert.Equal(1, audio.PlayMusicCount);
 
         viewModel.StopAllCommand.Execute(null);
 
         Assert.Equal("Play", viewModel.PlayPauseButtonText);
+        Assert.Equal("M8,5V19L19,12L8,5Z", viewModel.PlayPauseIconData);
     }
 
     [Fact]
