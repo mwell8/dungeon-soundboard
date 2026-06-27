@@ -101,6 +101,27 @@
     <Style Selector="ListBoxItem:selected Border.trackTile">
       <Setter Property="Background" Value="{Binding DataContext.CurrentCardBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
     </Style>
+    <Style Selector="ListBoxItem:pointerover Border.playlistRow">
+      <Setter Property="Background" Value="{Binding DataContext.PanelAltBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+    </Style>
+    <Style Selector="ListBoxItem:selected Border.playlistRow">
+      <Setter Property="Background" Value="{Binding DataContext.CurrentCardBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+    </Style>
+    <Style Selector="ListBoxItem:selected Border.playlistAccent">
+      <Setter Property="Background" Value="{Binding DataContext.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+    </Style>
+    <Style Selector="Border.playlistRow">
+      <Setter Property="Background" Value="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="8,7" />
+      <Setter Property="Margin" Value="0,2" />
+      <Setter Property="MinHeight" Value="38" />
+    </Style>
+    <Style Selector="Border.playlistAccent">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Width" Value="3" />
+      <Setter Property="CornerRadius" Value="2" />
+    </Style>
     <Style Selector="Border.trackTile">
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="10,8" />
@@ -189,7 +210,7 @@
           <ListBox Grid.Row="1" ItemsSource="{Binding MusicPlaylists}" SelectedItem="{Binding SelectedMusicPlaylist}">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <Border Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="6" Padding="10,8" Margin="0,2">
+                <Border Classes="playlistRow">
                   <Border.ContextMenu>
                     <ContextMenu DataContext="{Binding}">
                       <MenuItem
@@ -212,49 +233,52 @@
                           CommandParameter="{Binding}" />
                     </ContextMenu>
                   </Border.ContextMenu>
-                  <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                  <Grid ColumnDefinitions="3,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="7">
+                    <Border Classes="playlistAccent" />
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                     <Button
-                        Grid.Column="1"
+                        Grid.Column="2"
                         Classes="compact iconButton"
                         ToolTip.Tip="Shuffle play this playlist"
                         AutomationProperties.Name="Shuffle play this playlist"
                         Command="{Binding DataContext.PlayMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}"
-                        Margin="8,0,0,0">
+                        Margin="0">
                       <PathIcon Data="M10.6,9.2L5.4,4L4,5.4L9.2,10.6L10.6,9.2M14.8,4L16.9,6.1L4,19L5.4,20.4L18.3,7.5L20.4,9.6V4H14.8M14.8,14.8L13.4,16.2L16.8,19.6H14V21.6H21.6V14H19.6V16.8L14.8,14.8Z" />
                     </Button>
                     <Button
-                        Grid.Column="2"
+                        Grid.Column="3"
                         Classes="compact iconButton"
                         ToolTip.Tip="Move playlist up"
                         AutomationProperties.Name="Move playlist up"
                         Command="{Binding DataContext.MoveMusicPlaylistItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}"
-                        Margin="4,0,0,0">
+                        Margin="0">
                       <PathIcon Data="M7,14L12,9L17,14H7Z" />
                     </Button>
                     <Button
-                        Grid.Column="3"
+                        Grid.Column="4"
                         Classes="compact iconButton"
                         ToolTip.Tip="Move playlist down"
                         AutomationProperties.Name="Move playlist down"
                         Command="{Binding DataContext.MoveMusicPlaylistItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}"
-                        Margin="4,0,0,0">
+                        Margin="0">
                       <PathIcon Data="M7,10L12,15L17,10H7Z" />
                     </Button>
                     <Button
-                        Grid.Column="4"
+                        Grid.Column="5"
                         Classes="compact danger iconButton"
                         ToolTip.Tip="Delete playlist"
                         AutomationProperties.Name="Delete playlist"
                         Command="{Binding DataContext.RequestDeleteMusicPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}"
-                        Margin="4,0,0,0">
+                        Margin="0">
                       <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
                     </Button>
-                    <TextBlock Grid.Column="5" Classes="caption" Text="{Binding Tracks.Count}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    <Border Grid.Column="6" Classes="badge" MinWidth="28" VerticalAlignment="Center">
+                      <TextBlock Classes="caption" Text="{Binding Tracks.Count}" TextAlignment="Center" />
+                    </Border>
                   </Grid>
                 </Border>
               </DataTemplate>
@@ -283,7 +307,7 @@
           <ListBox Grid.Row="4" ItemsSource="{Binding EffectPlaylists}" SelectedItem="{Binding SelectedEffectPlaylist}">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <Border Background="{Binding DataContext.CardBrush, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="6" Padding="10,8" Margin="0,2">
+                <Border Classes="playlistRow">
                   <Border.ContextMenu>
                     <ContextMenu DataContext="{Binding}">
                       <MenuItem
@@ -301,39 +325,42 @@
                           CommandParameter="{Binding}" />
                     </ContextMenu>
                   </Border.ContextMenu>
-                  <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                  <Grid ColumnDefinitions="3,*,Auto,Auto,Auto,Auto" ColumnSpacing="7">
+                    <Border Classes="playlistAccent" />
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                     <Button
-                        Grid.Column="1"
+                        Grid.Column="2"
                         Classes="compact iconButton"
                         ToolTip.Tip="Move playlist up"
                         AutomationProperties.Name="Move playlist up"
                         Command="{Binding DataContext.MoveEffectPlaylistItemUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}"
-                        Margin="8,0,0,0">
+                        Margin="0">
                       <PathIcon Data="M7,14L12,9L17,14H7Z" />
                     </Button>
                     <Button
-                        Grid.Column="2"
+                        Grid.Column="3"
                         Classes="compact iconButton"
                         ToolTip.Tip="Move playlist down"
                         AutomationProperties.Name="Move playlist down"
                         Command="{Binding DataContext.MoveEffectPlaylistItemDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}"
-                        Margin="4,0,0,0">
+                        Margin="0">
                       <PathIcon Data="M7,10L12,15L17,10H7Z" />
                     </Button>
                     <Button
-                        Grid.Column="3"
+                        Grid.Column="4"
                         Classes="compact danger iconButton"
                         ToolTip.Tip="Delete playlist"
                         AutomationProperties.Name="Delete playlist"
                         Command="{Binding DataContext.RequestDeleteEffectPlaylistItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}"
-                        Margin="4,0,0,0">
+                        Margin="0">
                       <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
                     </Button>
-                    <TextBlock Grid.Column="4" Classes="caption" Text="{Binding Effects.Count}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    <Border Grid.Column="5" Classes="badge" MinWidth="28" VerticalAlignment="Center">
+                      <TextBlock Classes="caption" Text="{Binding Effects.Count}" TextAlignment="Center" />
+                    </Border>
                   </Grid>
                 </Border>
               </DataTemplate>
