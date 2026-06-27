@@ -52,3 +52,6 @@ jobs:
 
       - name: Run Windows unit tests
         run: dotnet test .\DungeonSoundboard.Windows.sln -c Release --no-build
+
+      - name: Publish Windows app
+        run: dotnet publish .\src\DungeonSoundboard.App\DungeonSoundboard.App.csproj -c Release -r win-x64 --self-contained true -o .\publish\ci-win-x64
