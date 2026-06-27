@@ -166,7 +166,7 @@ public partial class MainWindow : Window
 
     private void OnDeleteMusicTrackMenuClick(object? sender, RoutedEventArgs e)
     {
-        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.DeleteMusicTrackItemCommand.Execute(track));
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.RequestDeleteMusicTrackItemCommand.Execute(track));
     }
 
     private void OnPlayEffectTrackMenuClick(object? sender, RoutedEventArgs e)
@@ -196,7 +196,7 @@ public partial class MainWindow : Window
 
     private void OnDeleteEffectTrackMenuClick(object? sender, RoutedEventArgs e)
     {
-        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.DeleteEffectTrackItemCommand.Execute(track));
+        ExecuteTrackCommand(sender, (viewModel, track) => viewModel.RequestDeleteEffectTrackItemCommand.Execute(track));
     }
 
     private void ExecuteTrackCommand(object? sender, Action<MainWindowViewModel, Track> execute)

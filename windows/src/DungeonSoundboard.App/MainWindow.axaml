@@ -296,7 +296,7 @@
               <Button Grid.Column="1" Content="Add Files" Command="{Binding AddMusicFilesCommand}" />
               <Button Grid.Column="2" Content="Add Folder" Command="{Binding AddMusicFolderCommand}" />
               <Button Grid.Column="3" Classes="primary" Content="Play" Command="{Binding PlaySelectedMusicCommand}" />
-              <Button Grid.Column="4" Classes="danger" Content="Delete" Command="{Binding DeleteMusicTrackCommand}" />
+              <Button Grid.Column="4" Classes="danger" Content="Delete" Command="{Binding RequestDeleteMusicTrackCommand}" />
             </Grid>
 
             <ListBox Grid.Row="1"
@@ -374,7 +374,7 @@
                           <Button Classes="tileIcon danger"
                                   ToolTip.Tip="Delete this track from the playlist"
                                   AutomationProperties.Name="Delete this track from the playlist"
-                                  Command="{Binding DataContext.DeleteMusicTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  Command="{Binding DataContext.RequestDeleteMusicTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                   CommandParameter="{Binding Track}">
                             <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
                           </Button>
@@ -440,7 +440,7 @@
               </StackPanel>
               <Button Grid.Column="1" Content="Add Files" Command="{Binding AddEffectFilesCommand}" />
               <Button Grid.Column="2" Content="Add Folder" Command="{Binding AddEffectFolderCommand}" />
-              <Button Grid.Column="3" Classes="danger" Content="Delete" Command="{Binding DeleteEffectTrackCommand}" />
+              <Button Grid.Column="3" Classes="danger" Content="Delete" Command="{Binding RequestDeleteEffectTrackCommand}" />
             </Grid>
 
             <ListBox Grid.Row="1"
@@ -513,7 +513,7 @@
                         <Button Classes="tileIcon danger"
                                 ToolTip.Tip="Delete this SFX from the playlist"
                                 AutomationProperties.Name="Delete this SFX from the playlist"
-                                Command="{Binding DataContext.DeleteEffectTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Command="{Binding DataContext.RequestDeleteEffectTrackItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding Track}">
                           <PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" />
                         </Button>
@@ -633,6 +633,40 @@
           </StackPanel>
         </Grid>
       </Grid>
+    </Border>
+
+    <Border Grid.RowSpan="3"
+            Background="#AA11151B"
+            IsVisible="{Binding IsDeleteConfirmationVisible}">
+      <Border HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Width="460"
+              MaxWidth="460"
+              Padding="22"
+              Background="{Binding PanelBrush}"
+              BorderBrush="{Binding DangerBrush}"
+              BorderThickness="1"
+              CornerRadius="8">
+        <StackPanel Spacing="12">
+          <TextBlock Text="{Binding DeleteConfirmationTitle}"
+                     FontSize="20"
+                     FontWeight="SemiBold"
+                     HorizontalAlignment="Center" />
+          <TextBlock Classes="caption"
+                     Text="{Binding DeleteConfirmationMessage}"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,4,0,0">
+            <Button Content="Cancel"
+                    Command="{Binding CancelDeleteCommand}"
+                    Padding="18,8" />
+            <Button Classes="danger"
+                    Content="Delete"
+                    Command="{Binding ConfirmDeleteCommand}"
+                    Padding="18,8" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
     </Border>
 
     <Border Grid.RowSpan="3"

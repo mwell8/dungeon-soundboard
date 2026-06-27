@@ -29,6 +29,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isMusicPaused;
     private bool _isMusicDropTargetActive;
     private bool _isEffectDropTargetActive;
+    private PendingTrackDelete? _pendingTrackDelete;
     private string? _errorMessage;
     private string _lastImportMessage = "";
     private HotkeyAction? _captureAction;
@@ -128,12 +129,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         MoveMusicTrackDownCommand = new RelayCommand(() => MoveSelectedTrack(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, 1, nameof(MusicTracks)), () => CanMove(SelectedMusicPlaylist?.Tracks, SelectedMusicTrack, 1));
         MoveEffectTrackUpCommand = new RelayCommand(() => MoveSelectedTrack(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, -1, nameof(EffectTracks)), () => CanMove(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, -1));
         MoveEffectTrackDownCommand = new RelayCommand(() => MoveSelectedTrack(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, 1, nameof(EffectTracks)), () => CanMove(SelectedEffectPlaylist?.Effects, SelectedEffectTrack, 1));
+        RequestDeleteMusicTrackCommand = new RelayCommand(() => RequestDeleteMusicTrack(SelectedMusicTrack), () => SelectedMusicTrack is not null);
+        RequestDeleteEffectTrackCommand = new RelayCommand(() => RequestDeleteEffectTrack(SelectedEffectTrack), () => SelectedEffectTrack is not null);
         DeleteMusicTrackItemCommand = new RelayCommand<Track>(DeleteMusicTrack);
         DeleteEffectTrackItemCommand = new RelayCommand<Track>(DeleteEffectTrack);
+        RequestDeleteMusicTrackItemCommand = new RelayCommand<Track>(RequestDeleteMusicTrack);
+        RequestDeleteEffectTrackItemCommand = new RelayCommand<Track>(RequestDeleteEffectTrack);
         MoveMusicTrackItemUpCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedMusicPlaylist?.Tracks, track, -1, nameof(MusicTracks)));
         MoveMusicTrackItemDownCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedMusicPlaylist?.Tracks, track, 1, nameof(MusicTracks)));
         MoveEffectTrackItemUpCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedEffectPlaylist?.Effects, track, -1, nameof(EffectTracks)));
         MoveEffectTrackItemDownCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedEffectPlaylist?.Effects, track, 1, nameof(EffectTracks)));
+        ConfirmDeleteCommand = new RelayCommand(ConfirmDelete, () => _pendingTrackDelete is not null);
+        CancelDeleteCommand = new RelayCommand(CancelDelete, () => _pendingTrackDelete is not null);
         BindSelectedMusicCommand = new RelayCommand(BeginBindSelectedMusic, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
         BindSelectedEffectCommand = new RelayCommand(BeginBindSelectedEffect, () => SelectedEffectPlaylist is not null && SelectedEffectTrack is not null);
         BindMusicTrackItemCommand = new RelayCommand<Track>(BeginBindMusicTrack);
@@ -193,12 +200,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand MoveMusicTrackDownCommand { get; }
     public IRelayCommand MoveEffectTrackUpCommand { get; }
     public IRelayCommand MoveEffectTrackDownCommand { get; }
+    public IRelayCommand RequestDeleteMusicTrackCommand { get; }
+    public IRelayCommand RequestDeleteEffectTrackCommand { get; }
     public IRelayCommand<Track> DeleteMusicTrackItemCommand { get; }
     public IRelayCommand<Track> DeleteEffectTrackItemCommand { get; }
+    public IRelayCommand<Track> RequestDeleteMusicTrackItemCommand { get; }
+    public IRelayCommand<Track> RequestDeleteEffectTrackItemCommand { get; }
     public IRelayCommand<Track> MoveMusicTrackItemUpCommand { get; }
     public IRelayCommand<Track> MoveMusicTrackItemDownCommand { get; }
     public IRelayCommand<Track> MoveEffectTrackItemUpCommand { get; }
     public IRelayCommand<Track> MoveEffectTrackItemDownCommand { get; }
+    public IRelayCommand ConfirmDeleteCommand { get; }
+    public IRelayCommand CancelDeleteCommand { get; }
     public IRelayCommand BindSelectedMusicCommand { get; }
     public IRelayCommand BindSelectedEffectCommand { get; }
     public IRelayCommand<Track> BindMusicTrackItemCommand { get; }
@@ -636,6 +649,19 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public bool IsStatusError => ErrorMessage is not null;
 
     public IBrush StatusMessageBrush => IsStatusError ? DangerBrush : TextSecondaryBrush;
+
+    public bool IsDeleteConfirmationVisible => _pendingTrackDelete is not null;
+
+    public string DeleteConfirmationTitle => _pendingTrackDelete?.Role switch
+    {
+        TrackRole.Music => "Delete music track?",
+        TrackRole.Effect => "Delete SFX track?",
+        _ => ""
+    };
+
+    public string DeleteConfirmationMessage => _pendingTrackDelete is null
+        ? ""
+        : $"Remove \"{_pendingTrackDelete.TrackTitle}\" from this playlist? The audio file stays on disk.";
 
     public bool IsMusicDropTargetActive
     {
@@ -1120,56 +1146,145 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void DeleteMusicTrack(Track? track)
     {
-        if (SelectedMusicPlaylist is null || track is null)
+        DeleteMusicTrackFromPlaylist(SelectedMusicPlaylist, track);
+    }
+
+    private void DeleteMusicTrackFromPlaylist(Playlist? playlist, Track? track)
+    {
+        if (playlist is null || track is null)
         {
             return;
         }
 
-        var removed = SelectedMusicPlaylist.Tracks.FirstOrDefault(candidate => candidate.Id == track.Id);
+        var removed = playlist.Tracks.FirstOrDefault(candidate => candidate.Id == track.Id);
         if (removed is null)
         {
             return;
         }
 
-        SelectedMusicPlaylist.Tracks.Remove(removed);
+        playlist.Tracks.Remove(removed);
         if (CurrentTrack?.Id == removed.Id)
         {
             StopAll();
-            CurrentTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
+            CurrentTrack = playlist.Tracks.FirstOrDefault();
         }
 
-        if (SelectedMusicTrack?.Id == removed.Id)
+        if (SelectedMusicPlaylist?.Id == playlist.Id && SelectedMusicTrack?.Id == removed.Id)
         {
-            SelectedMusicTrack = SelectedMusicPlaylist.Tracks.FirstOrDefault();
+            SelectedMusicTrack = playlist.Tracks.FirstOrDefault();
         }
 
-        NotifyMusicTracksChanged();
+        if (SelectedMusicPlaylist?.Id == playlist.Id)
+        {
+            NotifyMusicTracksChanged();
+        }
+
+        ClearPendingDeleteIfMatches(TrackRole.Music, playlist.Id, removed.Id);
         Save();
         NotifyCommandStates();
     }
 
     private void DeleteEffectTrack(Track? track)
     {
-        if (SelectedEffectPlaylist is null || track is null)
+        DeleteEffectTrackFromPlaylist(SelectedEffectPlaylist, track);
+    }
+
+    private void DeleteEffectTrackFromPlaylist(EffectPlaylist? playlist, Track? track)
+    {
+        if (playlist is null || track is null)
         {
             return;
         }
 
-        var removed = SelectedEffectPlaylist.Effects.FirstOrDefault(candidate => candidate.Id == track.Id);
+        var removed = playlist.Effects.FirstOrDefault(candidate => candidate.Id == track.Id);
         if (removed is null)
         {
             return;
         }
 
-        SelectedEffectPlaylist.Effects.Remove(removed);
-        if (SelectedEffectTrack?.Id == removed.Id)
+        playlist.Effects.Remove(removed);
+        if (SelectedEffectPlaylist?.Id == playlist.Id && SelectedEffectTrack?.Id == removed.Id)
         {
-            SelectedEffectTrack = SelectedEffectPlaylist.Effects.FirstOrDefault();
+            SelectedEffectTrack = playlist.Effects.FirstOrDefault();
         }
 
-        NotifyEffectTracksChanged();
+        if (SelectedEffectPlaylist?.Id == playlist.Id)
+        {
+            NotifyEffectTracksChanged();
+        }
+
+        ClearPendingDeleteIfMatches(TrackRole.Effect, playlist.Id, removed.Id);
         Save();
         NotifyCommandStates();
+    }
+
+    private void RequestDeleteMusicTrack(Track? track)
+    {
+        if (SelectedMusicPlaylist is null || track is null || !SelectedMusicPlaylist.Tracks.Any(candidate => candidate.Id == track.Id))
+        {
+            return;
+        }
+
+        SetPendingTrackDelete(new PendingTrackDelete(TrackRole.Music, SelectedMusicPlaylist.Id, track.Id, track.Title));
+    }
+
+    private void RequestDeleteEffectTrack(Track? track)
+    {
+        if (SelectedEffectPlaylist is null || track is null || !SelectedEffectPlaylist.Effects.Any(candidate => candidate.Id == track.Id))
+        {
+            return;
+        }
+
+        SetPendingTrackDelete(new PendingTrackDelete(TrackRole.Effect, SelectedEffectPlaylist.Id, track.Id, track.Title));
+    }
+
+    private void ConfirmDelete()
+    {
+        var pending = _pendingTrackDelete;
+        if (pending is null)
+        {
+            return;
+        }
+
+        if (pending.Role == TrackRole.Music)
+        {
+            var playlist = MusicPlaylists.FirstOrDefault(candidate => candidate.Id == pending.PlaylistId);
+            var track = playlist?.Tracks.FirstOrDefault(candidate => candidate.Id == pending.TrackId);
+            DeleteMusicTrackFromPlaylist(playlist, track);
+        }
+        else
+        {
+            var playlist = EffectPlaylists.FirstOrDefault(candidate => candidate.Id == pending.PlaylistId);
+            var track = playlist?.Effects.FirstOrDefault(candidate => candidate.Id == pending.TrackId);
+            DeleteEffectTrackFromPlaylist(playlist, track);
+        }
+
+        CancelDelete();
+    }
+
+    private void CancelDelete()
+    {
+        SetPendingTrackDelete(null);
+    }
+
+    private void SetPendingTrackDelete(PendingTrackDelete? pendingDelete)
+    {
+        _pendingTrackDelete = pendingDelete;
+        OnPropertyChanged(nameof(IsDeleteConfirmationVisible));
+        OnPropertyChanged(nameof(DeleteConfirmationTitle));
+        OnPropertyChanged(nameof(DeleteConfirmationMessage));
+        ConfirmDeleteCommand?.NotifyCanExecuteChanged();
+        CancelDeleteCommand?.NotifyCanExecuteChanged();
+    }
+
+    private void ClearPendingDeleteIfMatches(TrackRole role, Guid playlistId, Guid trackId)
+    {
+        if (_pendingTrackDelete?.Role == role &&
+            _pendingTrackDelete.PlaylistId == playlistId &&
+            _pendingTrackDelete.TrackId == trackId)
+        {
+            SetPendingTrackDelete(null);
+        }
     }
 
     private void MoveSelectedPlaylist<T>(ObservableCollection<T> collection, T? selected, int delta)
@@ -1974,6 +2089,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         PlaySelectedMusicCommand?.NotifyCanExecuteChanged();
         DeleteMusicTrackCommand?.NotifyCanExecuteChanged();
         DeleteEffectTrackCommand?.NotifyCanExecuteChanged();
+        RequestDeleteMusicTrackCommand?.NotifyCanExecuteChanged();
+        RequestDeleteEffectTrackCommand?.NotifyCanExecuteChanged();
         MoveMusicTrackUpCommand?.NotifyCanExecuteChanged();
         MoveMusicTrackDownCommand?.NotifyCanExecuteChanged();
         MoveEffectTrackUpCommand?.NotifyCanExecuteChanged();
@@ -1984,4 +2101,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ClearSelectedMusicBindingCommand?.NotifyCanExecuteChanged();
         ClearSelectedEffectBindingCommand?.NotifyCanExecuteChanged();
     }
+
+    private sealed record PendingTrackDelete(TrackRole Role, Guid PlaylistId, Guid TrackId, string TrackTitle);
 }

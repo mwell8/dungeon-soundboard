@@ -27,6 +27,45 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void RequestDeleteTrackItemShowsConfirmationAndCancelKeepsTrack()
+    {
+        var first = new Track("First", "C:\\audio\\first.mp3", TrackRole.Music);
+        var second = new Track("Second", "C:\\audio\\second.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [first, second]);
+        using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")));
+
+        viewModel.RequestDeleteMusicTrackItemCommand.Execute(second);
+
+        Assert.True(viewModel.IsDeleteConfirmationVisible);
+        Assert.Equal("Delete music track?", viewModel.DeleteConfirmationTitle);
+        Assert.Contains("Second", viewModel.DeleteConfirmationMessage);
+
+        viewModel.CancelDeleteCommand.Execute(null);
+
+        Assert.False(viewModel.IsDeleteConfirmationVisible);
+        Assert.Equal(2, viewModel.MusicTracks.Count);
+        Assert.Contains(viewModel.MusicTracks, track => track.Id == second.Id);
+    }
+
+    [Fact]
+    public void ConfirmDeleteTrackItemRemovesRequestedTrack()
+    {
+        var first = new Track("First", "C:\\audio\\first.mp3", TrackRole.Music);
+        var second = new Track("Second", "C:\\audio\\second.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [first, second]);
+        var storage = StorageWith(playlist, new EffectPlaylist("SFX"));
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.RequestDeleteMusicTrackItemCommand.Execute(second);
+        viewModel.ConfirmDeleteCommand.Execute(null);
+
+        Assert.False(viewModel.IsDeleteConfirmationVisible);
+        Assert.Single(viewModel.MusicTracks);
+        Assert.Equal(first.Id, viewModel.MusicTracks[0].Id);
+        Assert.True(storage.SaveCount > 0);
+    }
+
+    [Fact]
     public void BindMusicTrackItemCapturesRequestedTrackWithoutChangingSelectedTrack()
     {
         var first = new Track("First", "C:\\audio\\first.mp3", TrackRole.Music);
