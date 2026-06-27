@@ -415,6 +415,20 @@
                             Header="Open File Location"
                             Command="{Binding DataContext.OpenTrackLocationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             CommandParameter="{Binding Track}" />
+                        <MenuItem Header="Volume">
+                          <MenuItem
+                              Header="Mute (0%)"
+                              Command="{Binding DataContext.MuteMusicTrackItemVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding Track}" />
+                          <MenuItem
+                              Header="Normal (100%)"
+                              Command="{Binding DataContext.DefaultMusicTrackItemVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding Track}" />
+                          <MenuItem
+                              Header="Boost (150%)"
+                              Command="{Binding DataContext.BoostMusicTrackItemVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding Track}" />
+                        </MenuItem>
                         <MenuItem Header="Bind Hotkey" Tag="{Binding Track}" Click="OnBindMusicTrackMenuClick" />
                         <MenuItem Header="Clear Hotkey" Tag="{Binding Track}" Click="OnClearMusicTrackHotkeyMenuClick" />
                         <Separator />
@@ -571,6 +585,20 @@
                             Header="Open File Location"
                             Command="{Binding DataContext.OpenTrackLocationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             CommandParameter="{Binding Track}" />
+                        <MenuItem Header="Volume">
+                          <MenuItem
+                              Header="Mute (0%)"
+                              Command="{Binding DataContext.MuteEffectTrackItemVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding Track}" />
+                          <MenuItem
+                              Header="Normal (100%)"
+                              Command="{Binding DataContext.DefaultEffectTrackItemVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding Track}" />
+                          <MenuItem
+                              Header="Boost (150%)"
+                              Command="{Binding DataContext.BoostEffectTrackItemVolumeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding Track}" />
+                        </MenuItem>
                         <MenuItem Header="Bind Hotkey" Tag="{Binding Track}" Click="OnBindEffectTrackMenuClick" />
                         <MenuItem Header="Clear Hotkey" Tag="{Binding Track}" Click="OnClearEffectTrackHotkeyMenuClick" />
                         <Separator />

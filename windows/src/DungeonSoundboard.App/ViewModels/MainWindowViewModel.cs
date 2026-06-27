@@ -13,6 +13,8 @@ namespace DungeonSoundboard.App.ViewModels;
 
 public sealed class MainWindowViewModel : ObservableObject, IDisposable
 {
+    private const double BoostVolumeMultiplier = 1.5;
+
     private readonly IStorageService _storage;
     private readonly IFileImportService _importService;
     private readonly IAudioService _audio;
@@ -146,6 +148,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         MoveMusicTrackItemDownCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedMusicPlaylist?.Tracks, track, 1, nameof(MusicTracks)));
         MoveEffectTrackItemUpCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedEffectPlaylist?.Effects, track, -1, nameof(EffectTracks)));
         MoveEffectTrackItemDownCommand = new RelayCommand<Track>(track => MoveTrackItem(SelectedEffectPlaylist?.Effects, track, 1, nameof(EffectTracks)));
+        MuteMusicTrackItemVolumeCommand = new RelayCommand<Track>(track => SetMusicTrackItemVolume(track, Track.MinimumVolumeMultiplier));
+        DefaultMusicTrackItemVolumeCommand = new RelayCommand<Track>(track => SetMusicTrackItemVolume(track, Track.DefaultVolumeMultiplier));
+        BoostMusicTrackItemVolumeCommand = new RelayCommand<Track>(track => SetMusicTrackItemVolume(track, BoostVolumeMultiplier));
+        MuteEffectTrackItemVolumeCommand = new RelayCommand<Track>(track => SetEffectTrackItemVolume(track, Track.MinimumVolumeMultiplier));
+        DefaultEffectTrackItemVolumeCommand = new RelayCommand<Track>(track => SetEffectTrackItemVolume(track, Track.DefaultVolumeMultiplier));
+        BoostEffectTrackItemVolumeCommand = new RelayCommand<Track>(track => SetEffectTrackItemVolume(track, BoostVolumeMultiplier));
         ConfirmDeleteCommand = new RelayCommand(ConfirmDelete, () => HasPendingDelete);
         CancelDeleteCommand = new RelayCommand(CancelDelete, () => HasPendingDelete);
         BindSelectedMusicCommand = new RelayCommand(BeginBindSelectedMusic, () => SelectedMusicPlaylist is not null && SelectedMusicTrack is not null);
@@ -223,6 +231,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IRelayCommand<Track> MoveMusicTrackItemDownCommand { get; }
     public IRelayCommand<Track> MoveEffectTrackItemUpCommand { get; }
     public IRelayCommand<Track> MoveEffectTrackItemDownCommand { get; }
+    public IRelayCommand<Track> MuteMusicTrackItemVolumeCommand { get; }
+    public IRelayCommand<Track> DefaultMusicTrackItemVolumeCommand { get; }
+    public IRelayCommand<Track> BoostMusicTrackItemVolumeCommand { get; }
+    public IRelayCommand<Track> MuteEffectTrackItemVolumeCommand { get; }
+    public IRelayCommand<Track> DefaultEffectTrackItemVolumeCommand { get; }
+    public IRelayCommand<Track> BoostEffectTrackItemVolumeCommand { get; }
     public IRelayCommand ConfirmDeleteCommand { get; }
     public IRelayCommand CancelDeleteCommand { get; }
     public IRelayCommand BindSelectedMusicCommand { get; }
@@ -1507,6 +1521,57 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         Save();
         NotifyCommandStates();
+    }
+
+    private void SetMusicTrackItemVolume(Track? track, double volume)
+    {
+        if (SelectedMusicPlaylist is null || track is null)
+        {
+            return;
+        }
+
+        var target = SelectedMusicPlaylist.Tracks.FirstOrDefault(candidate => candidate.Id == track.Id);
+        if (target is null)
+        {
+            return;
+        }
+
+        target.VolumeMultiplier = volume;
+        if (CurrentTrack?.Id == target.Id)
+        {
+            ApplyMusicVolume();
+        }
+
+        Save();
+        if (SelectedMusicTrack?.Id == target.Id)
+        {
+            OnPropertyChanged(nameof(SelectedMusicTrackVolume));
+        }
+
+        NotifyMusicTracksChanged();
+    }
+
+    private void SetEffectTrackItemVolume(Track? track, double volume)
+    {
+        if (SelectedEffectPlaylist is null || track is null)
+        {
+            return;
+        }
+
+        var target = SelectedEffectPlaylist.Effects.FirstOrDefault(candidate => candidate.Id == track.Id);
+        if (target is null)
+        {
+            return;
+        }
+
+        target.VolumeMultiplier = volume;
+        Save();
+        if (SelectedEffectTrack?.Id == target.Id)
+        {
+            OnPropertyChanged(nameof(SelectedEffectTrackVolume));
+        }
+
+        NotifyEffectTracksChanged();
     }
 
     private static bool CanMove<T>(IList<T>? collection, T? selected, int delta)

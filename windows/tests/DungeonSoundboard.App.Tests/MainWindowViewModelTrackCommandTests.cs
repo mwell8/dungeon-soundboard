@@ -253,6 +253,60 @@ public sealed class MainWindowViewModelTrackCommandTests
     }
 
     [Fact]
+    public void MusicTrackVolumePresetUpdatesRequestedTrackWithoutChangingSelectedTrack()
+    {
+        var first = new Track("First", "C:\\audio\\first.mp3", TrackRole.Music);
+        var second = new Track("Second", "C:\\audio\\second.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [first, second]);
+        var storage = StorageWith(playlist, new EffectPlaylist("SFX"));
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.BoostMusicTrackItemVolumeCommand.Execute(second);
+
+        Assert.Equal(first.Id, viewModel.SelectedMusicTrack?.Id);
+        Assert.Equal(1.5, second.VolumeMultiplier);
+        Assert.Equal(Track.DefaultVolumeMultiplier, first.VolumeMultiplier);
+        Assert.Equal(1.5, Assert.Single(viewModel.MusicTrackTiles, tile => tile.Track.Id == second.Id).VolumeMultiplier);
+        Assert.True(storage.SaveCount > 0);
+    }
+
+    [Fact]
+    public void MutingCurrentMusicTrackAppliesOutputVolumeImmediately()
+    {
+        var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
+        var playlist = new Playlist("Music", [track]);
+        var audio = new FakeAudioService();
+        using var viewModel = CreateViewModel(StorageWith(playlist, new EffectPlaylist("SFX")), audio);
+
+        viewModel.PlayMusicTrackCommand.Execute(track);
+
+        Assert.Equal(viewModel.MusicVolume, audio.LastSetMusicVolume);
+
+        viewModel.MuteMusicTrackItemVolumeCommand.Execute(track);
+
+        Assert.Equal(0, track.VolumeMultiplier);
+        Assert.Equal(0, audio.LastSetMusicVolume);
+    }
+
+    [Fact]
+    public void EffectTrackVolumePresetUpdatesRequestedEffectWithoutChangingSelectedTrack()
+    {
+        var first = new Track("First", "C:\\audio\\first.wav", TrackRole.Effect);
+        var second = new Track("Second", "C:\\audio\\second.wav", TrackRole.Effect);
+        var effects = new EffectPlaylist("SFX", [first, second]);
+        var storage = StorageWith(new Playlist("Music"), effects);
+        using var viewModel = CreateViewModel(storage);
+
+        viewModel.MuteEffectTrackItemVolumeCommand.Execute(second);
+
+        Assert.Equal(first.Id, viewModel.SelectedEffectTrack?.Id);
+        Assert.Equal(0, second.VolumeMultiplier);
+        Assert.Equal(Track.DefaultVolumeMultiplier, first.VolumeMultiplier);
+        Assert.Equal(0, Assert.Single(viewModel.EffectTrackTiles, tile => tile.Track.Id == second.Id).VolumeMultiplier);
+        Assert.True(storage.SaveCount > 0);
+    }
+
+    [Fact]
     public void PlayPauseButtonTextReflectsTransportState()
     {
         var track = new Track("Track", "C:\\audio\\track.mp3", TrackRole.Music);
@@ -757,6 +811,7 @@ public sealed class MainWindowViewModelTrackCommandTests
         public TimeSpan MusicPosition { get; set; }
         public TimeSpan MusicDuration { get; set; }
         public TimeSpan? LastSeekPosition { get; private set; }
+        public double? LastSetMusicVolume { get; private set; }
 
         public void Dispose()
         {
@@ -817,6 +872,7 @@ public sealed class MainWindowViewModelTrackCommandTests
 
         public void SetMusicVolume(double volume)
         {
+            LastSetMusicVolume = volume;
         }
 
         public void SetEffectsVolume(double masterVolume)
