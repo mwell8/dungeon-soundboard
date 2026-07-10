@@ -154,6 +154,7 @@ xcodebuild \
   -configuration Debug \
   -destination "platform=macOS,arch=$NATIVE_ARCH" \
   -derivedDataPath "$TEMP_ROOT/derived-tests" \
+  -parallel-testing-enabled NO \
   test
 
 echo "==> Debug app build"
