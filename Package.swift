@@ -26,7 +26,10 @@ let package = Package(
                 "ThemeColor.swift",
                 "AppTheme.swift",
                 "ThemeRenderer.swift",
-                "Hotkey.swift"
+                "Hotkey.swift",
+                "MusicTrackReference.swift",
+                "ShuffleDeck.swift",
+                "TrackTransfer.swift"
             ]
         ),
         .testTarget(

@@ -74,7 +74,7 @@
 "settings.group.system" = "System";
 "settings.language.title" = "Language";
 "settings.about.title" = "About";
-"settings.about.version" = "Version 1.1.0";
+"settings.about.version" = "Version %@";
 "settings.playback.title" = "Playback";
 "settings.telemetry.title" = "Telemetry";
 "hotkeys.system.title" = "System Hotkeys";

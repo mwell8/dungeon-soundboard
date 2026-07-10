@@ -234,9 +234,29 @@ struct AppTheme: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let defaults = ThemeRenderer.defaultTheme
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        preset = try container.decodeIfPresent(ThemePreset.self, forKey: .preset) ?? defaults.preset
+        if container.contains(.preset) {
+            // Explicit null means a custom theme and must not be replaced with
+            // the default preset. Only a genuinely missing legacy field falls back.
+            preset = try container.decodeIfPresent(ThemePreset.self, forKey: .preset)
+        } else {
+            preset = defaults.preset
+        }
         palette = try container.decodeIfPresent(ThemePalette.self, forKey: .palette) ?? defaults.palette
         background = try container.decodeIfPresent(BackgroundConfig.self, forKey: .background) ?? defaults.background
         chrome = try container.decodeIfPresent(UIChromeConfig.self, forKey: .chrome) ?? defaults.chrome
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        if let preset {
+            try container.encode(preset, forKey: .preset)
+        } else {
+            // Keep the key so a custom theme remains distinguishable from legacy
+            // payloads that predate the preset field entirely.
+            try container.encodeNil(forKey: .preset)
+        }
+        try container.encode(palette, forKey: .palette)
+        try container.encode(background, forKey: .background)
+        try container.encode(chrome, forKey: .chrome)
     }
 }

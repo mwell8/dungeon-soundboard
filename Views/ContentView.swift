@@ -5,8 +5,8 @@ import UniformTypeIdentifiers
 /// Главный экран приложения.
 /// Здесь только интерфейс и вызовы методов ViewModel.
 struct ContentView: View {
-    @StateObject private var vm = PlayerViewModel()
-    @StateObject private var hotkeyStore = HotkeyStore()
+    @ObservedObject var vm: PlayerViewModel
+    @ObservedObject var hotkeyStore: HotkeyStore
     @EnvironmentObject private var themeStore: ThemeStore
 
     @AppStorage(AppLanguage.userDefaultsKey) private var appLanguageRawValue: String = AppLanguage.defaultLanguage.rawValue
@@ -25,6 +25,9 @@ struct ContentView: View {
     @State private var hoveredEffectPlaylistID: UUID?
     @State private var draggingMusicPlaylistID: UUID?
     @State private var draggingEffectPlaylistID: UUID?
+    @State private var activePlaylistDragPayload: PlaylistDragPayload?
+    @State private var musicPlaylistDropTargetID: UUID?
+    @State private var effectPlaylistDropTargetID: UUID?
     @State private var playlistRenameTarget: PlaylistActionTarget?
     @State private var playlistDeleteTarget: PlaylistActionTarget?
     @State private var playlistRenameName: String = ""
@@ -32,6 +35,9 @@ struct ContentView: View {
     @State private var hoveredEffectTrackID: UUID?
     @State private var draggingMusicTrackID: UUID?
     @State private var draggingEffectTrackID: UUID?
+    @State private var activeTrackDragPayload: TrackDragPayload?
+    @State private var musicTrackDropTargetID: UUID?
+    @State private var effectTrackDropTargetID: UUID?
     @State private var trackRenameTarget: TrackRenameTarget?
     @State private var trackRenameName: String = ""
     @State private var trackVolumeTarget: TrackVolumeTarget?
@@ -40,6 +46,8 @@ struct ContentView: View {
     @State private var selectedEffectTrackIDs: Set<UUID> = []
     @State private var isMusicDropTargeted: Bool = false
     @State private var isEffectsDropTargeted: Bool = false
+    @State private var isMusicGridEndDropTargeted: Bool = false
+    @State private var isEffectsGridEndDropTargeted: Bool = false
 
     private var theme: ResolvedTheme {
         themeStore.resolvedTheme
@@ -50,6 +58,23 @@ struct ContentView: View {
     }
 
     var body: some View {
+        lifecycleContent
+            .overlay {
+                if let captureAction = hotkeyStore.captureAction {
+                    HotkeyCaptureOverlay(
+                        actionTitle: hotkeyActionTitle(captureAction, vm: vm),
+                        onCancel: {
+                            hotkeyStore.cancelCapture()
+                        }
+                    )
+                }
+            }
+            .popover(item: $trackVolumeTarget) { target in
+                trackVolumePopover(for: target)
+            }
+    }
+
+    private var rootLayout: some View {
         ZStack {
             backgroundLayer
 
@@ -83,6 +108,10 @@ struct ContentView: View {
             .padding(metrics.panelPadding)
         }
         .frame(minWidth: 1080, minHeight: 680)
+    }
+
+    private var errorAlertContent: some View {
+        rootLayout
         .alert("error.title", isPresented: Binding(
             get: { vm.errorMessage != nil },
             set: { isPresented in
@@ -111,6 +140,10 @@ struct ContentView: View {
         } message: {
             Text(themeStore.errorMessage ?? L10n.tr("error.unknown"))
         }
+    }
+
+    private var sheetContent: some View {
+        errorAlertContent
         .sheet(isPresented: $isSettingsPresented) {
             ThemeSettingsView(
                 vm: vm,
@@ -151,6 +184,10 @@ struct ContentView: View {
                 }
             )
         }
+    }
+
+    private var dialogContent: some View {
+        sheetContent
         .alert(
             "import.conflicts.title",
             isPresented: Binding(
@@ -202,6 +239,10 @@ struct ContentView: View {
         } message: {
             Text("playlist.delete.confirm.message")
         }
+    }
+
+    private var lifecycleContent: some View {
+        dialogContent
         .onAppear {
             musicPaneHeight = CGFloat(persistedMusicPaneHeight)
             mainMusicPaneHeight = CGFloat(persistedMainMusicPaneHeight)
@@ -212,33 +253,20 @@ struct ContentView: View {
         .onDisappear {
             removeHotkeyMonitor()
         }
-        .onChange(of: appLanguageRawValue) {
+        .onChange(of: appLanguageRawValue) { _ in
             vm.refreshLocalizedDefaultPlaylistNames()
         }
-        .onChange(of: vm.musicPlaylists) {
+        .onChange(of: vm.musicPlaylists) { _ in
             hotkeyStore.purgeMissingTrackBindings(musicPlaylists: vm.musicPlaylists, effectPlaylists: vm.effectPlaylists)
         }
-        .onChange(of: vm.effectPlaylists) {
+        .onChange(of: vm.effectPlaylists) { _ in
             hotkeyStore.purgeMissingTrackBindings(musicPlaylists: vm.musicPlaylists, effectPlaylists: vm.effectPlaylists)
         }
-        .onChange(of: vm.selectedMusicPlaylistID) {
+        .onChange(of: vm.selectedMusicPlaylistID) { _ in
             selectedMusicTrackIDs.removeAll()
         }
-        .onChange(of: vm.selectedEffectPlaylistID) {
+        .onChange(of: vm.selectedEffectPlaylistID) { _ in
             selectedEffectTrackIDs.removeAll()
-        }
-        .overlay {
-            if let captureAction = hotkeyStore.captureAction {
-                HotkeyCaptureOverlay(
-                    actionTitle: hotkeyActionTitle(captureAction, vm: vm),
-                    onCancel: {
-                        hotkeyStore.cancelCapture()
-                    }
-                )
-            }
-        }
-        .popover(item: $trackVolumeTarget) { target in
-            trackVolumePopover(for: target)
         }
     }
 
@@ -438,8 +466,10 @@ struct ContentView: View {
                 .opacity(controlsOpacity)
                 .allowsHitTesting(controlsEnabled)
                 .onDrag {
+                    let payload = PlaylistDragPayload(role: .music, playlistID: playlist.id)
                     draggingMusicPlaylistID = playlist.id
-                    return NSItemProvider(object: playlist.id.uuidString as NSString)
+                    activePlaylistDragPayload = payload
+                    return DungeonDragItemProvider.playlist(payload)
                 }
 
             playlistActionsMenu(
@@ -454,6 +484,13 @@ struct ContentView: View {
             .allowsHitTesting(controlsEnabled)
         }
         .contentShape(Rectangle())
+        .overlay {
+            RoundedRectangle(cornerRadius: metricsCornerRadius * 0.45)
+                .stroke(
+                    musicPlaylistDropTargetID == playlist.id ? theme.accent : Color.clear,
+                    lineWidth: 2
+                )
+        }
         .onHover { hovered in
             if hovered {
                 hoveredMusicPlaylistID = playlist.id
@@ -462,11 +499,24 @@ struct ContentView: View {
             }
         }
         .onDrop(
-            of: [UTType.plainText.identifier],
-            delegate: MusicPlaylistDropDelegate(
-                targetID: playlist.id,
-                vm: vm,
-                draggingID: $draggingMusicPlaylistID
+            of: [
+                UTType.dungeonPlaylistReference.identifier,
+                UTType.dungeonTrackSelection.identifier,
+                UTType.fileURL.identifier
+            ],
+            delegate: PlaylistRowDropDelegate(
+                role: .music,
+                targetPlaylistID: playlist.id,
+                activeTrackPayload: $activeTrackDragPayload,
+                activePlaylistPayload: $activePlaylistDragPayload,
+                targetedPlaylistID: $musicPlaylistDropTargetID,
+                movePlaylist: vm.moveMusicPlaylist,
+                transferTracks: transferTrackPayload,
+                importFiles: { providers, targetID in
+                    handleFileDrop(providers: providers, target: .music, playlistID: targetID)
+                },
+                finishPlaylistDrag: finishPlaylistDrag,
+                finishTrackDrag: finishTrackDrag
             )
         )
     }
@@ -488,8 +538,10 @@ struct ContentView: View {
                 .opacity(controlsOpacity)
                 .allowsHitTesting(controlsEnabled)
                 .onDrag {
+                    let payload = PlaylistDragPayload(role: .effect, playlistID: playlist.id)
                     draggingEffectPlaylistID = playlist.id
-                    return NSItemProvider(object: playlist.id.uuidString as NSString)
+                    activePlaylistDragPayload = payload
+                    return DungeonDragItemProvider.playlist(payload)
                 }
 
             playlistActionsMenu(
@@ -504,6 +556,13 @@ struct ContentView: View {
             .allowsHitTesting(controlsEnabled)
         }
         .contentShape(Rectangle())
+        .overlay {
+            RoundedRectangle(cornerRadius: metricsCornerRadius * 0.45)
+                .stroke(
+                    effectPlaylistDropTargetID == playlist.id ? theme.accent : Color.clear,
+                    lineWidth: 2
+                )
+        }
         .onHover { hovered in
             if hovered {
                 hoveredEffectPlaylistID = playlist.id
@@ -512,11 +571,24 @@ struct ContentView: View {
             }
         }
         .onDrop(
-            of: [UTType.plainText.identifier],
-            delegate: EffectPlaylistDropDelegate(
-                targetID: playlist.id,
-                vm: vm,
-                draggingID: $draggingEffectPlaylistID
+            of: [
+                UTType.dungeonPlaylistReference.identifier,
+                UTType.dungeonTrackSelection.identifier,
+                UTType.fileURL.identifier
+            ],
+            delegate: PlaylistRowDropDelegate(
+                role: .effect,
+                targetPlaylistID: playlist.id,
+                activeTrackPayload: $activeTrackDragPayload,
+                activePlaylistPayload: $activePlaylistDragPayload,
+                targetedPlaylistID: $effectPlaylistDropTargetID,
+                movePlaylist: vm.moveEffectPlaylist,
+                transferTracks: transferTrackPayload,
+                importFiles: { providers, targetID in
+                    handleFileDrop(providers: providers, target: .effect, playlistID: targetID)
+                },
+                finishPlaylistDrag: finishPlaylistDrag,
+                finishTrackDrag: finishTrackDrag
             )
         )
     }
@@ -705,6 +777,30 @@ struct ContentView: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onDrop(
+                    of: [
+                        UTType.dungeonTrackSelection.identifier,
+                        UTType.fileURL.identifier
+                    ],
+                    delegate: TrackGridEndDropDelegate(
+                        role: .music,
+                        playlistID: vm.selectedMusicPlaylistID,
+                        activePayload: $activeTrackDragPayload,
+                        targetedCardID: $musicTrackDropTargetID,
+                        isTargeted: $isMusicGridEndDropTargeted,
+                        reorderTracksToEnd: reorderTrackPayloadToEnd,
+                        importFiles: { providers, playlistID in
+                            handleFileDrop(
+                                providers: providers,
+                                target: .music,
+                                playlistID: playlistID
+                            )
+                        },
+                        finishDrag: finishTrackDrag
+                    )
+                )
             } else {
                 emptyState(title: L10n.tr("empty.music_playlist"), icon: "music.note.list")
             }
@@ -716,10 +812,14 @@ struct ContentView: View {
         )
         .background(
             RoundedRectangle(cornerRadius: metricsCornerRadius)
-                .stroke(isMusicDropTargeted ? theme.accent : Color.clear, lineWidth: 2)
+                .stroke(
+                    isMusicDropTargeted || isMusicGridEndDropTargeted ? theme.accent : Color.clear,
+                    lineWidth: 2
+                )
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isMusicDropTargeted) { providers in
-            handleFileDrop(providers: providers, target: .music)
+            guard let playlistID = vm.selectedMusicPlaylistID else { return false }
+            return handleFileDrop(providers: providers, target: .music, playlistID: playlistID)
         }
     }
 
@@ -758,6 +858,30 @@ struct ContentView: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onDrop(
+                    of: [
+                        UTType.dungeonTrackSelection.identifier,
+                        UTType.fileURL.identifier
+                    ],
+                    delegate: TrackGridEndDropDelegate(
+                        role: .effect,
+                        playlistID: vm.selectedEffectPlaylistID,
+                        activePayload: $activeTrackDragPayload,
+                        targetedCardID: $effectTrackDropTargetID,
+                        isTargeted: $isEffectsGridEndDropTargeted,
+                        reorderTracksToEnd: reorderTrackPayloadToEnd,
+                        importFiles: { providers, playlistID in
+                            handleFileDrop(
+                                providers: providers,
+                                target: .effect,
+                                playlistID: playlistID
+                            )
+                        },
+                        finishDrag: finishTrackDrag
+                    )
+                )
             } else {
                 emptyState(title: L10n.tr("empty.sfx_playlist"), icon: "waveform.path")
             }
@@ -769,10 +893,14 @@ struct ContentView: View {
         )
         .background(
             RoundedRectangle(cornerRadius: metricsCornerRadius)
-                .stroke(isEffectsDropTargeted ? theme.accent : Color.clear, lineWidth: 2)
+                .stroke(
+                    isEffectsDropTargeted || isEffectsGridEndDropTargeted ? theme.accent : Color.clear,
+                    lineWidth: 2
+                )
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isEffectsDropTargeted) { providers in
-            handleFileDrop(providers: providers, target: .effect)
+            guard let playlistID = vm.selectedEffectPlaylistID else { return false }
+            return handleFileDrop(providers: providers, target: .effect, playlistID: playlistID)
         }
     }
 
@@ -811,8 +939,7 @@ struct ContentView: View {
                 .opacity(controlsOpacity)
                 .allowsHitTesting(controlsEnabled)
                 .onDrag {
-                    draggingMusicTrackID = track.id
-                    return NSItemProvider(object: track.id.uuidString as NSString)
+                    beginMusicTrackDrag(from: track)
                 }
 
             if let action, let renameTarget, let volumeTarget {
@@ -842,8 +969,10 @@ struct ContentView: View {
         .overlay(
             RoundedRectangle(cornerRadius: metricsCornerRadius * 0.75)
                 .stroke(
-                    isSelected ? theme.accent.opacity(0.75) : (vm.currentTrackID == track.id ? theme.accent.opacity(0.45) : theme.divider.opacity(0.45)),
-                    lineWidth: 1
+                    musicTrackDropTargetID == track.id
+                        ? theme.accent
+                        : (isSelected ? theme.accent.opacity(0.75) : (vm.currentTrackID == track.id ? theme.accent.opacity(0.45) : theme.divider.opacity(0.45))),
+                    lineWidth: musicTrackDropTargetID == track.id ? 2 : 1
                 )
         )
         .contentShape(Rectangle())
@@ -898,11 +1027,15 @@ struct ContentView: View {
             }
         }
         .onDrop(
-            of: [UTType.plainText.identifier],
-            delegate: MusicTrackDropDelegate(
-                targetID: track.id,
-                vm: vm,
-                draggingID: $draggingMusicTrackID
+            of: [UTType.dungeonTrackSelection.identifier],
+            delegate: TrackCardDropDelegate(
+                role: .music,
+                playlistID: vm.selectedMusicPlaylistID,
+                targetTrackID: track.id,
+                activePayload: $activeTrackDragPayload,
+                targetedTrackID: $musicTrackDropTargetID,
+                reorderTracks: reorderTrackPayload,
+                finishDrag: finishTrackDrag
             )
         )
         .help(track.path)
@@ -934,8 +1067,7 @@ struct ContentView: View {
                 .opacity(controlsOpacity)
                 .allowsHitTesting(controlsEnabled)
                 .onDrag {
-                    draggingEffectTrackID = track.id
-                    return NSItemProvider(object: track.id.uuidString as NSString)
+                    beginEffectTrackDrag(from: track)
                 }
 
             if let action, let renameTarget, let volumeTarget {
@@ -962,7 +1094,12 @@ struct ContentView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: metricsCornerRadius * 0.75)
-                .stroke(isSelected ? theme.accent.opacity(0.75) : theme.divider.opacity(0.45), lineWidth: 1)
+                .stroke(
+                    effectTrackDropTargetID == track.id
+                        ? theme.accent
+                        : (isSelected ? theme.accent.opacity(0.75) : theme.divider.opacity(0.45)),
+                    lineWidth: effectTrackDropTargetID == track.id ? 2 : 1
+                )
         )
         .contentShape(Rectangle())
         .onTapGesture {
@@ -1016,11 +1153,15 @@ struct ContentView: View {
             }
         }
         .onDrop(
-            of: [UTType.plainText.identifier],
-            delegate: EffectTrackDropDelegate(
-                targetID: track.id,
-                vm: vm,
-                draggingID: $draggingEffectTrackID
+            of: [UTType.dungeonTrackSelection.identifier],
+            delegate: TrackCardDropDelegate(
+                role: .effect,
+                playlistID: vm.selectedEffectPlaylistID,
+                targetTrackID: track.id,
+                activePayload: $activeTrackDragPayload,
+                targetedTrackID: $effectTrackDropTargetID,
+                reorderTracks: reorderTrackPayload,
+                finishDrag: finishTrackDrag
             )
         )
         .help(track.path)
@@ -1273,6 +1414,132 @@ struct ContentView: View {
         }
     }
 
+    private func beginMusicTrackDrag(from track: Track) -> NSItemProvider {
+        guard let playlistID = vm.selectedMusicPlaylistID else {
+            return NSItemProvider()
+        }
+        if !selectedMusicTrackIDs.contains(track.id) {
+            selectedMusicTrackIDs = [track.id]
+        }
+        let orderedIDs = vm.musicTracks
+            .map(\.id)
+            .filter(selectedMusicTrackIDs.contains)
+        let payload = TrackDragPayload(
+            role: .music,
+            sourcePlaylistID: playlistID,
+            trackIDs: orderedIDs
+        )
+        activeTrackDragPayload = payload
+        draggingMusicTrackID = track.id
+        return DungeonDragItemProvider.track(payload)
+    }
+
+    private func beginEffectTrackDrag(from track: Track) -> NSItemProvider {
+        guard let playlistID = vm.selectedEffectPlaylistID else {
+            return NSItemProvider()
+        }
+        if !selectedEffectTrackIDs.contains(track.id) {
+            selectedEffectTrackIDs = [track.id]
+        }
+        let orderedIDs = vm.effectTracks
+            .map(\.id)
+            .filter(selectedEffectTrackIDs.contains)
+        let payload = TrackDragPayload(
+            role: .effect,
+            sourcePlaylistID: playlistID,
+            trackIDs: orderedIDs
+        )
+        activeTrackDragPayload = payload
+        draggingEffectTrackID = track.id
+        return DungeonDragItemProvider.track(payload)
+    }
+
+    private func transferTrackPayload(
+        _ payload: TrackDragPayload,
+        to targetPlaylistID: UUID,
+        operation: TrackTransferOperation
+    ) {
+        let trackIDs = Set(payload.trackIDs)
+        let result: TrackTransferResult
+        switch payload.role {
+        case .music:
+            result = vm.transferMusicTracks(
+                ids: trackIDs,
+                from: payload.sourcePlaylistID,
+                to: targetPlaylistID,
+                operation: operation
+            )
+        case .effect:
+            result = vm.transferEffectTracks(
+                ids: trackIDs,
+                from: payload.sourcePlaylistID,
+                to: targetPlaylistID,
+                operation: operation
+            )
+        }
+
+        hotkeyStore.applyTransferResult(result)
+        guard operation == .move else { return }
+
+        let movedSourceIDs = Set(result.transferredSourceTrackIDs)
+        switch payload.role {
+        case .music:
+            selectedMusicTrackIDs.subtract(movedSourceIDs)
+        case .effect:
+            selectedEffectTrackIDs.subtract(movedSourceIDs)
+        }
+    }
+
+    private func reorderTrackPayload(_ payload: TrackDragPayload, relativeTo targetTrackID: UUID) {
+        let trackIDs = Set(payload.trackIDs)
+        switch payload.role {
+        case .music:
+            vm.reorderMusicTracks(
+                ids: trackIDs,
+                in: payload.sourcePlaylistID,
+                relativeTo: targetTrackID
+            )
+        case .effect:
+            vm.reorderEffectTracks(
+                ids: trackIDs,
+                in: payload.sourcePlaylistID,
+                relativeTo: targetTrackID
+            )
+        }
+    }
+
+    private func reorderTrackPayloadToEnd(_ payload: TrackDragPayload) {
+        let trackIDs = Set(payload.trackIDs)
+        switch payload.role {
+        case .music:
+            vm.reorderMusicTracksToEnd(
+                ids: trackIDs,
+                in: payload.sourcePlaylistID
+            )
+        case .effect:
+            vm.reorderEffectTracksToEnd(
+                ids: trackIDs,
+                in: payload.sourcePlaylistID
+            )
+        }
+    }
+
+    private func finishPlaylistDrag() {
+        activePlaylistDragPayload = nil
+        draggingMusicPlaylistID = nil
+        draggingEffectPlaylistID = nil
+    }
+
+    private func finishTrackDrag() {
+        activeTrackDragPayload = nil
+        draggingMusicTrackID = nil
+        draggingEffectTrackID = nil
+        musicTrackDropTargetID = nil
+        effectTrackDropTargetID = nil
+        isMusicGridEndDropTargeted = false
+        isEffectsGridEndDropTargeted = false
+    }
+
     private func installHotkeyMonitorIfNeeded() {
         guard hotkeyMonitor == nil else { return }
         hotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -1294,14 +1561,23 @@ struct ContentView: View {
                 return nil
             }
 
+            // Даже во время записи хоткея оставляем Space/Return и стрелки
+            // сфокусированному нативному контролу, а Tab — focus traversal.
+            guard !shouldPreserveNativeKeyboardHandling(event) else {
+                return event
+            }
+
             guard let hotkey = Hotkey.from(event: event) else {
-                return nil
+                // Tab и неподдерживаемые сочетания остаются системными событиями.
+                return event
             }
             assignCapturedHotkey(hotkey, to: captureAction)
             return nil
         }
 
-        guard !isTextInputActive(), let hotkey = Hotkey.from(event: event) else {
+        guard !isTextInputActive(),
+              !shouldPreserveNativeKeyboardHandling(event),
+              let hotkey = Hotkey.from(event: event) else {
             return event
         }
 
@@ -1316,6 +1592,51 @@ struct ContentView: View {
     private func isTextInputActive() -> Bool {
         guard let responder = NSApp.keyWindow?.firstResponder else { return false }
         return responder is NSTextView || responder is NSText
+    }
+
+    private func shouldPreserveNativeKeyboardHandling(_ event: NSEvent) -> Bool {
+        // Tab всегда принадлежит focus traversal и никогда не является хоткеем.
+        if event.keyCode == 48 { return true }
+
+        guard let responder = event.window?.firstResponder ?? NSApp.keyWindow?.firstResponder else {
+            return false
+        }
+
+        switch event.keyCode {
+        case 36, 49:
+            return focusedAccessibilityRole == .button
+                || responderIsInsideNativeControl(responder, types: [NSButton.self])
+        case 123...126:
+            let nativeRoles: Set<NSAccessibility.Role> = [.slider, .list, .table, .outline]
+            return focusedAccessibilityRole.map(nativeRoles.contains) == true
+                || responderIsInsideNativeControl(
+                responder,
+                types: [NSSlider.self, NSTableView.self, NSOutlineView.self, NSCollectionView.self]
+            )
+        default:
+            return false
+        }
+    }
+
+    private var focusedAccessibilityRole: NSAccessibility.Role? {
+        guard let element = NSApp.accessibilityFocusedUIElement as? NSAccessibilityElement else {
+            return nil
+        }
+        return element.accessibilityRole()
+    }
+
+    private func responderIsInsideNativeControl(
+        _ responder: NSResponder,
+        types: [NSView.Type]
+    ) -> Bool {
+        var view = responder as? NSView
+        while let current = view {
+            if types.contains(where: { current.isKind(of: $0) }) {
+                return true
+            }
+            view = current.superview
+        }
+        return false
     }
 
     private func assignCapturedHotkey(_ hotkey: Hotkey, to action: HotkeyAction) {
@@ -1339,7 +1660,7 @@ struct ContentView: View {
     private func executeHotkeyAction(_ action: HotkeyAction) {
         switch action {
         case .stopAll:
-            vm.stop()
+            vm.stopAll()
         case .stopEffects:
             vm.stopEffects()
         case .playPause:
@@ -1480,55 +1801,23 @@ struct ContentView: View {
         case effect
     }
 
-    private func handleFileDrop(providers: [NSItemProvider], target: DropTarget) -> Bool {
-        let group = DispatchGroup()
-        let collected = DroppedURLCollector()
-        let typeID = UTType.fileURL.identifier
-
-        for provider in providers where provider.hasItemConformingToTypeIdentifier(typeID) {
-            group.enter()
-            provider.loadItem(forTypeIdentifier: typeID, options: nil) { item, _ in
-                defer { group.leave() }
-                var url: URL?
-                if let data = item as? Data {
-                    url = URL(dataRepresentation: data, relativeTo: nil)
-                } else if let fileURL = item as? URL {
-                    url = fileURL
-                }
-                if let url {
-                    collected.append(url)
-                }
-            }
-        }
-
-        group.notify(queue: .main) {
+    @discardableResult
+    private func handleFileDrop(
+        providers: [NSItemProvider],
+        target: DropTarget,
+        playlistID: UUID
+    ) -> Bool {
+        OrderedFileURLDropCollector.collect(from: providers) { urls in
+            guard !urls.isEmpty else { return }
             switch target {
             case .music:
-                vm.importDroppedMusicURLs(collected.snapshot())
+                vm.importDroppedMusicURLs(urls, to: playlistID)
             case .effect:
-                vm.importDroppedEffectURLs(collected.snapshot())
+                vm.importDroppedEffectURLs(urls, to: playlistID)
             }
         }
-        return true
     }
 
-}
-
-private final class DroppedURLCollector: @unchecked Sendable {
-    private let lock = NSLock()
-    private var urls: [URL] = []
-
-    func append(_ url: URL) {
-        lock.lock()
-        urls.append(url)
-        lock.unlock()
-    }
-
-    func snapshot() -> [URL] {
-        lock.lock()
-        defer { lock.unlock() }
-        return urls
-    }
 }
 
 @MainActor
@@ -1592,102 +1881,6 @@ struct HotkeyCaptureOverlay: View {
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(radius: 18)
-    }
-}
-
-private struct MusicPlaylistDropDelegate: DropDelegate {
-    let targetID: UUID
-    let vm: PlayerViewModel
-    @Binding var draggingID: UUID?
-
-    func validateDrop(info: DropInfo) -> Bool {
-        draggingID != nil
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard let draggingID else { return }
-        vm.moveMusicPlaylist(draggingID, to: targetID)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggingID = nil
-        return true
-    }
-}
-
-private struct EffectPlaylistDropDelegate: DropDelegate {
-    let targetID: UUID
-    let vm: PlayerViewModel
-    @Binding var draggingID: UUID?
-
-    func validateDrop(info: DropInfo) -> Bool {
-        draggingID != nil
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard let draggingID else { return }
-        vm.moveEffectPlaylist(draggingID, to: targetID)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggingID = nil
-        return true
-    }
-}
-
-private struct MusicTrackDropDelegate: DropDelegate {
-    let targetID: UUID
-    let vm: PlayerViewModel
-    @Binding var draggingID: UUID?
-
-    func validateDrop(info: DropInfo) -> Bool {
-        draggingID != nil
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard let draggingID else { return }
-        vm.moveMusicTrack(draggingID, to: targetID)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggingID = nil
-        return true
-    }
-}
-
-private struct EffectTrackDropDelegate: DropDelegate {
-    let targetID: UUID
-    let vm: PlayerViewModel
-    @Binding var draggingID: UUID?
-
-    func validateDrop(info: DropInfo) -> Bool {
-        draggingID != nil
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard let draggingID else { return }
-        vm.moveEffectTrack(draggingID, to: targetID)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggingID = nil
-        return true
     }
 }
 

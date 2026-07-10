@@ -74,7 +74,7 @@
 "settings.group.system" = "Система";
 "settings.language.title" = "Язык";
 "settings.about.title" = "О приложении";
-"settings.about.version" = "Версия 1.1.0";
+"settings.about.version" = "Версия %@";
 "settings.playback.title" = "Воспроизведение";
 "settings.telemetry.title" = "Телеметрия";
 "hotkeys.system.title" = "Системные хоткеи";

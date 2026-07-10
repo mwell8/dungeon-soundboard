@@ -56,13 +56,18 @@ final class HotkeyStore: ObservableObject {
 
     func purgeMissingTrackBindings(musicPlaylists: [Playlist], effectPlaylists: [EffectPlaylist]) {
         var updated = configuration
-        updated.removeMissingTrackBindings(
-            musicPlaylistIDs: Set(musicPlaylists.map(\.id)),
-            musicTrackIDs: Set(musicPlaylists.flatMap { $0.tracks.map(\.id) }),
-            effectPlaylistIDs: Set(effectPlaylists.map(\.id)),
-            effectTrackIDs: Set(effectPlaylists.flatMap { $0.effects.map(\.id) })
+        _ = updated.reconcileTrackBindings(
+            musicPlaylists: musicPlaylists,
+            effectPlaylists: effectPlaylists
         )
         guard updated != configuration else { return }
+        configuration = updated
+        save()
+    }
+
+    func applyTransferResult(_ result: TrackTransferResult) {
+        var updated = configuration
+        guard updated.applyTransferResult(result) > 0 else { return }
         configuration = updated
         save()
     }

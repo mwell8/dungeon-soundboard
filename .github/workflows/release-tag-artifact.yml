@@ -7,34 +7,74 @@ on:
 
 jobs:
   release-artifact:
-    runs-on: macos-14
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Release app (unsigned)
+      - name: Verify project
+        run: scripts/check_project.sh
+
+      - name: Build and package universal Release app
+        id: package
         run: |
+          BUILD_DIR=".DerivedDataReleaseCI"
+          DIST_DIR="Release"
+
           xcodebuild \
             -project "Dungeon Soundboard.xcodeproj" \
             -scheme "Dungeon_Soundboard" \
             -configuration Release \
             -sdk macosx \
-            -derivedDataPath ".DerivedDataReleaseCI" \
+            -derivedDataPath "$BUILD_DIR" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
             build
 
-      - name: Pack release zip
-        run: |
-          mkdir -p Release
-          cp -R ".DerivedDataReleaseCI/Build/Products/Release/Dungeon_Soundboard.app" Release/
+          BUILD_SETTINGS="$(xcodebuild \
+            -project "Dungeon Soundboard.xcodeproj" \
+            -scheme "Dungeon_Soundboard" \
+            -configuration Release \
+            -derivedDataPath "$BUILD_DIR" \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            -showBuildSettings)"
+          FULL_PRODUCT_NAME="$(printf '%s\n' "$BUILD_SETTINGS" | awk -F ' = ' '/^[[:space:]]*FULL_PRODUCT_NAME = / { print $2; exit }')"
+          EXECUTABLE_NAME="$(printf '%s\n' "$BUILD_SETTINGS" | awk -F ' = ' '/^[[:space:]]*EXECUTABLE_NAME = / { print $2; exit }')"
+          MARKETING_VERSION="$(printf '%s\n' "$BUILD_SETTINGS" | awk -F ' = ' '/^[[:space:]]*MARKETING_VERSION = / { print $2; exit }')"
+          APP_PATH="$BUILD_DIR/Build/Products/Release/$FULL_PRODUCT_NAME"
+          EXECUTABLE_PATH="$APP_PATH/Contents/MacOS/$EXECUTABLE_NAME"
+          INFO_PLIST="$APP_PATH/Contents/Info.plist"
+          PRODUCT_BASENAME="${FULL_PRODUCT_NAME%.app}"
+          ARCHIVE_PRODUCT_NAME="${PRODUCT_BASENAME// /-}"
+
+          test -d "$APP_PATH"
+          test -x "$EXECUTABLE_PATH"
+          test -f "$INFO_PLIST"
+          test "$(plutil -extract LSMinimumSystemVersion raw -o - "$INFO_PLIST")" = "13.0"
+          test "$(plutil -extract CFBundleShortVersionString raw -o - "$INFO_PLIST")" = "$MARKETING_VERSION"
+          test "$GITHUB_REF_NAME" = "v$MARKETING_VERSION"
+
+          ARCHS_OUTPUT="$(lipo -archs "$EXECUTABLE_PATH")"
+          case " $ARCHS_OUTPUT " in *" arm64 "*) ;; *) exit 1 ;; esac
+          case " $ARCHS_OUTPUT " in *" x86_64 "*) ;; *) exit 1 ;; esac
+
+          mkdir -p "$DIST_DIR"
+          cp -R "$APP_PATH" "$DIST_DIR/"
+          ARCHIVE_NAME="$ARCHIVE_PRODUCT_NAME-$MARKETING_VERSION-macOS-universal-unsigned"
+          ARCHIVE_PATH="$DIST_DIR/$ARCHIVE_NAME.zip"
           ditto -c -k --sequesterRsrc --keepParent \
-            "Release/Dungeon_Soundboard.app" \
-            "Release/Dungeon_Soundboard-unsigned-macOS.zip"
+            "$DIST_DIR/$FULL_PRODUCT_NAME" \
+            "$ARCHIVE_PATH"
+
+          echo "artifact_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
+          echo "archive_path=$ARCHIVE_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Dungeon_Soundboard-unsigned-macOS
-          path: Release/Dungeon_Soundboard-unsigned-macOS.zip
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.archive_path }}
           if-no-files-found: error

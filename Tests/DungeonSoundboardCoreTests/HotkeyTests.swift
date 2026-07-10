@@ -30,6 +30,26 @@ final class HotkeyTests: XCTestCase {
         XCTAssertEqual(configuration.hotkey(for: .stopAll), hotkey)
     }
 
+    func testPhysicalHotkeyIdentityIgnoresKeyboardLayoutLabel() {
+        let latin = Hotkey(keyCode: 0, label: "A", modifier: .control)
+        let cyrillic = Hotkey(keyCode: 0, label: "Ф", modifier: .control)
+
+        XCTAssertEqual(latin, cyrillic)
+        XCTAssertEqual(Set([latin, cyrillic]).count, 1)
+    }
+
+    func testConflictDetectionUsesPhysicalKeyInsteadOfLabel() {
+        let latin = Hotkey(keyCode: 0, label: "A", modifier: .none)
+        let cyrillic = Hotkey(keyCode: 0, label: "Ф", modifier: .none)
+        var configuration = HotkeyConfiguration(bindings: [
+            HotkeyBinding(action: .playPause, hotkey: latin)
+        ])
+
+        let conflict = configuration.assign(cyrillic, to: .stopAll, resolvingConflicts: false)
+
+        XCTAssertEqual(conflict?.existingAction, .playPause)
+    }
+
     func testConfigurationSurvivesCoding() throws {
         let action = HotkeyAction.playMusicTrack(
             playlistID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
@@ -133,6 +153,20 @@ final class HotkeyTests: XCTestCase {
         )
     }
 
+    func testHotkeyNormalizationRejectsTabForNativeFocusTraversal() {
+        XCTAssertNil(
+            Hotkey.normalized(
+                keyCode: 48,
+                charactersIgnoringModifiers: "\t",
+                characters: "\t",
+                isShiftPressed: false,
+                isControlPressed: false,
+                isOptionPressed: false,
+                isCommandPressed: false
+            )
+        )
+    }
+
     func testHotkeyNormalizationTreatsForwardDeleteAsDelete() {
         XCTAssertEqual(
             Hotkey.normalized(
@@ -173,5 +207,164 @@ final class HotkeyTests: XCTestCase {
 
         XCTAssertEqual(configuration.bindings.count, 1)
         XCTAssertEqual(configuration.bindings.first?.action, .playMusicTrack(playlistID: existingPlaylistID, trackID: existingTrackID))
+    }
+
+    func testMoveTransferRetargetsMusicBindingAndKeepsHotkey() {
+        let sourcePlaylistID = UUID()
+        let destinationPlaylistID = UUID()
+        let trackID = UUID()
+        let hotkey = Hotkey(keyCode: 12, label: "Q", modifier: .control)
+        var configuration = HotkeyConfiguration(bindings: [
+            HotkeyBinding(
+                action: .playMusicTrack(playlistID: sourcePlaylistID, trackID: trackID),
+                hotkey: hotkey
+            )
+        ])
+        let result = TrackTransferResult(
+            operation: .move,
+            role: .music,
+            sourcePlaylistID: sourcePlaylistID,
+            destinationPlaylistID: destinationPlaylistID,
+            transferred: [TrackTransferRecord(sourceTrackID: trackID, destinationTrackID: trackID)],
+            duplicateTrackIDs: [],
+            missingTrackIDs: []
+        )
+
+        XCTAssertEqual(configuration.applyTransferResult(result), 1)
+        XCTAssertNil(
+            configuration.hotkey(
+                for: .playMusicTrack(playlistID: sourcePlaylistID, trackID: trackID)
+            )
+        )
+        XCTAssertEqual(
+            configuration.hotkey(
+                for: .playMusicTrack(playlistID: destinationPlaylistID, trackID: trackID)
+            ),
+            hotkey
+        )
+    }
+
+    func testCopyTransferDoesNotRetargetOriginalBinding() {
+        let sourcePlaylistID = UUID()
+        let destinationPlaylistID = UUID()
+        let sourceTrackID = UUID()
+        let copiedTrackID = UUID()
+        let action = HotkeyAction.playEffect(playlistID: sourcePlaylistID, trackID: sourceTrackID)
+        let hotkey = Hotkey(keyCode: 13, label: "W", modifier: .none)
+        var configuration = HotkeyConfiguration(bindings: [
+            HotkeyBinding(action: action, hotkey: hotkey)
+        ])
+        let result = TrackTransferResult(
+            operation: .copy,
+            role: .effect,
+            sourcePlaylistID: sourcePlaylistID,
+            destinationPlaylistID: destinationPlaylistID,
+            transferred: [
+                TrackTransferRecord(sourceTrackID: sourceTrackID, destinationTrackID: copiedTrackID)
+            ],
+            duplicateTrackIDs: [],
+            missingTrackIDs: []
+        )
+
+        XCTAssertEqual(configuration.applyTransferResult(result), 0)
+        XCTAssertEqual(configuration.hotkey(for: action), hotkey)
+    }
+
+    func testReconcileRetargetsUniquelyMovedTrackAndRemovesMissingTrack() {
+        let oldPlaylistID = UUID()
+        let destinationPlaylistID = UUID()
+        let movedTrackID = UUID()
+        let missingTrackID = UUID()
+        let movedHotkey = Hotkey(keyCode: 14, label: "E", modifier: .none)
+        var configuration = HotkeyConfiguration(bindings: [
+            HotkeyBinding(
+                action: .playMusicTrack(playlistID: oldPlaylistID, trackID: movedTrackID),
+                hotkey: movedHotkey
+            ),
+            HotkeyBinding(
+                action: .playMusicTrack(playlistID: oldPlaylistID, trackID: missingTrackID),
+                hotkey: Hotkey(keyCode: 15, label: "R", modifier: .none)
+            ),
+            HotkeyBinding(
+                action: .playPause,
+                hotkey: Hotkey(keyCode: 49, label: "Space", modifier: .none)
+            )
+        ])
+        let musicPlaylists = [
+            Playlist(
+                id: destinationPlaylistID,
+                name: "Destination",
+                tracks: [Track(id: movedTrackID, title: "Moved", path: "/tmp/moved.mp3")]
+            )
+        ]
+
+        let result = configuration.reconcileTrackBindings(
+            musicPlaylists: musicPlaylists,
+            effectPlaylists: []
+        )
+
+        XCTAssertEqual(result, HotkeyReconciliationResult(retargetedCount: 1, removedCount: 1))
+        XCTAssertEqual(
+            configuration.hotkey(
+                for: .playMusicTrack(playlistID: destinationPlaylistID, trackID: movedTrackID)
+            ),
+            movedHotkey
+        )
+        XCTAssertNotNil(configuration.hotkey(for: .playPause))
+    }
+
+    func testReconcileKeepsValidExactPairWhenTrackIDHasMultipleOwners() {
+        let firstPlaylistID = UUID()
+        let secondPlaylistID = UUID()
+        let trackID = UUID()
+        let hotkey = Hotkey(keyCode: 16, label: "Y", modifier: .none)
+        var configuration = HotkeyConfiguration(bindings: [
+            HotkeyBinding(
+                action: .playMusicTrack(playlistID: firstPlaylistID, trackID: trackID),
+                hotkey: hotkey
+            )
+        ])
+        let duplicatedTrack = Track(id: trackID, title: "Duplicate ID", path: "/tmp/a.mp3")
+
+        let result = configuration.reconcileTrackBindings(
+            musicPlaylists: [
+                Playlist(id: firstPlaylistID, name: "First", tracks: [duplicatedTrack]),
+                Playlist(id: secondPlaylistID, name: "Second", tracks: [duplicatedTrack])
+            ],
+            effectPlaylists: []
+        )
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(
+            configuration.hotkey(
+                for: .playMusicTrack(playlistID: firstPlaylistID, trackID: trackID)
+            ),
+            hotkey
+        )
+    }
+
+    func testReconcileRemovesAmbiguousBindingWhenOriginalPairIsGone() {
+        let oldPlaylistID = UUID()
+        let firstOwnerID = UUID()
+        let secondOwnerID = UUID()
+        let trackID = UUID()
+        var configuration = HotkeyConfiguration(bindings: [
+            HotkeyBinding(
+                action: .playEffect(playlistID: oldPlaylistID, trackID: trackID),
+                hotkey: Hotkey(keyCode: 17, label: "T", modifier: .none)
+            )
+        ])
+        let duplicatedTrack = Track(id: trackID, title: "Duplicate ID", path: "/tmp/effect.wav", role: .effect)
+
+        let result = configuration.reconcileTrackBindings(
+            musicPlaylists: [],
+            effectPlaylists: [
+                EffectPlaylist(id: firstOwnerID, name: "First", effects: [duplicatedTrack]),
+                EffectPlaylist(id: secondOwnerID, name: "Second", effects: [duplicatedTrack])
+            ]
+        )
+
+        XCTAssertEqual(result.removedCount, 1)
+        XCTAssertTrue(configuration.bindings.isEmpty)
     }
 }

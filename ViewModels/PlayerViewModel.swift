@@ -1,13 +1,12 @@
 import Foundation
 import Combine
 import AppKit
-@preconcurrency import AVFAudio
 import UniformTypeIdentifiers
 
 /// Главная логика плеера.
 /// Разделяет музыкальные и SFX-плейлисты и управляет воспроизведением.
 @MainActor
-final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudioPlayerDelegate {
+final class PlayerViewModel: NSObject, ObservableObject, AudioPlayerAdapterDelegate {
     struct ImportConflictSummary: Identifiable, Equatable {
         let id = UUID()
         let target: String
@@ -82,6 +81,9 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
 
     @Published var isShuffleEnabled: Bool = false {
         didSet {
+            if oldValue != isShuffleEnabled {
+                rebuildShuffleDeck()
+            }
             if !isHydratingPreferences {
                 savePreferences()
             }
@@ -101,7 +103,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     @Published var errorMessage: String? {
         didSet {
             guard let errorMessage, !errorMessage.isEmpty else { return }
-            AppTelemetry.shared.error(
+            telemetry.error(
                 errorMessage,
                 metadata: [
                     "music_playlists": "\(musicPlaylists.count)",
@@ -112,6 +114,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     @Published var importConflictSummary: ImportConflictSummary?
+    @Published private(set) var activeEffectCount: Int = 0
     @Published var isSentryTelemetryEnabled: Bool = false {
         didSet {
             if !isHydratingPreferences {
@@ -170,19 +173,37 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
 
     // MARK: - Внутренние свойства
 
-    private var musicPlayer: AVAudioPlayer?
-    // Для наложения SFX используем несколько плееров одновременно (polyphony).
-    private var effectPlayers: [ObjectIdentifier: AVAudioPlayer] = [:]
-    private var effectScopedResources: [ObjectIdentifier: (url: URL, hasScope: Bool)] = [:]
-    private var effectVolumeMultipliers: [ObjectIdentifier: Double] = [:]
-    private var timer: Timer?
-    private var playbackHistory: [UUID] = []
-    private var activeDuckCount: Int = 0
+    private final class EffectVoice {
+        let player: any AudioPlayerAdapter
+        let lease: FileAccessLease
+        let volumeMultiplier: Double
 
-    private var activeScopedURL: URL?
-    private var hasActiveSecurityScope: Bool = false
+        init(player: any AudioPlayerAdapter, lease: FileAccessLease, volumeMultiplier: Double) {
+            self.player = player
+            self.lease = lease
+            self.volumeMultiplier = volumeMultiplier
+        }
+    }
+
+    private let defaults: UserDefaults
+    private let audioPlayerFactory: any AudioPlayerFactory
+    private let fileAccessResolver: any FileAccessResolving
+    private let playbackScheduler: any PlaybackScheduling
+    private let telemetry: any TelemetryReporting
+
+    private var musicPlayer: (any AudioPlayerAdapter)?
+    private var musicFileLease: FileAccessLease?
+    // Для наложения SFX используем несколько плееров одновременно (polyphony).
+    private var effectVoices: [ObjectIdentifier: EffectVoice] = [:]
+    private var playbackProgressTask: Task<Void, Never>?
+    private var pauseFadeTask: Task<Void, Never>?
+    private var playbackHistory: [MusicTrackReference] = []
+    private var shuffleDeck: ShuffleDeck?
+    private var activeDuckCount: Int = 0
     // Во время загрузки настроек отключаем лишние savePreferences() из didSet.
     private var isHydratingPreferences: Bool = false
+    private var needsNormalizedStateSave = false
+    private var pendingMigrationCompletion = false
 
     // MARK: - Поддерживаемые расширения
 
@@ -190,34 +211,55 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         "mp3", "wav", "aiff", "aif", "m4a", "aac", "caf", "mp4"
     ]
 
-    private enum PlaylistTarget {
-        case music
-        case effect
+    private enum PlaylistTarget: Equatable {
+        case music(UUID)
+        case effect(UUID)
     }
 
     // MARK: - Инициализация
 
-    override init() {
+    override convenience init() {
+        self.init(
+            defaults: .standard,
+            audioPlayerFactory: SystemAudioPlayerFactory(),
+            fileAccessResolver: PersistentFileAccessResolver(),
+            playbackScheduler: TaskPlaybackScheduler(),
+            telemetry: AppTelemetry.shared
+        )
+    }
+
+    init(
+        defaults: UserDefaults,
+        audioPlayerFactory: any AudioPlayerFactory,
+        fileAccessResolver: any FileAccessResolving,
+        playbackScheduler: any PlaybackScheduling = TaskPlaybackScheduler(),
+        telemetry: any TelemetryReporting
+    ) {
+        self.defaults = defaults
+        self.audioPlayerFactory = audioPlayerFactory
+        self.fileAccessResolver = fileAccessResolver
+        self.playbackScheduler = playbackScheduler
+        self.telemetry = telemetry
         super.init()
 
+        isHydratingPreferences = true
         loadState()
         loadPreferences()
         ensureDefaultsAfterLoading()
-        startTimer()
+        isHydratingPreferences = false
+        if needsNormalizedStateSave {
+            let didSave = saveState()
+            if didSave, pendingMigrationCompletion {
+                defaults.set(true, forKey: PlayerDefaultsKeys.migrationCompleted)
+            }
+        }
+        savePreferences()
+        startPlaybackProgressUpdates()
     }
 
     deinit {
-        timer?.invalidate()
-        musicPlayer?.stop()
-        for (key, effectPlayer) in effectPlayers {
-            effectPlayer.stop()
-            if let resource = effectScopedResources[key], resource.hasScope {
-                resource.url.stopAccessingSecurityScopedResource()
-            }
-        }
-        if hasActiveSecurityScope, let activeScopedURL {
-            activeScopedURL.stopAccessingSecurityScopedResource()
-        }
+        playbackProgressTask?.cancel()
+        pauseFadeTask?.cancel()
     }
 
     // MARK: - Вычисляемые свойства
@@ -267,7 +309,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     var hasActiveEffects: Bool {
-        !effectPlayers.isEmpty
+        activeEffectCount > 0
     }
 
     // MARK: - Музыкальные плейлисты
@@ -306,14 +348,13 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         let wasSelected = selectedMusicPlaylistID == deletedPlaylist.id
         let wasPlaybackContext = playbackMusicPlaylistID == deletedPlaylist.id
 
-        if wasSelected || wasPlaybackContext {
-            stop()
+        if wasPlaybackContext {
+            stopMusic()
             currentTrackID = nil
             playbackMusicPlaylistID = nil
         }
 
-        let deletedIDs = Set(deletedPlaylist.tracks.map { $0.id })
-        playbackHistory.removeAll { deletedIDs.contains($0) }
+        playbackHistory.removeAll { $0.playlistID == deletedPlaylist.id }
 
         musicPlaylists.remove(at: index)
 
@@ -344,15 +385,24 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
 
     func playMusicPlaylistShuffled(_ playlist: Playlist) {
         guard let playlistIndex = musicPlaylists.firstIndex(where: { $0.id == playlist.id }) else { return }
-
-        selectedMusicPlaylistID = playlist.id
-        playbackMusicPlaylistID = playlist.id
-        isShuffleEnabled = true
-
         let playlist = musicPlaylists[playlistIndex]
         guard !playlist.tracks.isEmpty else { return }
+        var deck = ShuffleDeck(playlistID: playlist.id, trackIDs: playlist.tracks.map(\.id))
+        guard let first = deck.drawNext(
+            repeatMode: .off,
+            availableTrackIDs: playlist.tracks.map(\.id),
+            currentTrackID: nil
+        ) else { return }
+        guard startMusic(
+            reference: first,
+            addCurrentToHistory: true,
+            resetShuffleDeck: false
+        ) else { return }
 
-        playRandomTrack(from: playlist)
+        selectedMusicPlaylistID = playlist.id
+        isShuffleEnabled = true
+        // didSet создаёт новую колоду; возвращаем локальную, из которой первый ID уже извлечён.
+        shuffleDeck = deck
     }
 
     // MARK: - SFX плейлисты
@@ -389,10 +439,6 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
 
         let deletedPlaylist = effectPlaylists[index]
         let wasSelected = selectedEffectPlaylistID == deletedPlaylist.id
-        let deletedIDs = Set(deletedPlaylist.effects.map { $0.id })
-
-        playbackHistory.removeAll { deletedIDs.contains($0) }
-
         effectPlaylists.remove(at: index)
 
         if effectPlaylists.isEmpty {
@@ -449,36 +495,45 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     // MARK: - Импорт
 
     func addMusicTracksFromFinder() {
-        addFilesFromFinder(role: .music, target: .music)
+        guard let selectedMusicPlaylistID else { return }
+        addFilesFromFinder(role: .music, target: .music(selectedMusicPlaylistID))
     }
 
     func addEffectsFromFinder() {
-        addFilesFromFinder(role: .effect, target: .effect)
+        guard let selectedEffectPlaylistID else { return }
+        addFilesFromFinder(role: .effect, target: .effect(selectedEffectPlaylistID))
     }
 
     func addMusicFolderFromFinder() {
-        addFolderFromFinder(target: .music)
+        guard let selectedMusicPlaylistID else { return }
+        addFolderFromFinder(target: .music(selectedMusicPlaylistID))
     }
 
     func addEffectsFolderFromFinder() {
-        addFolderFromFinder(target: .effect)
+        guard let selectedEffectPlaylistID else { return }
+        addFolderFromFinder(target: .effect(selectedEffectPlaylistID))
     }
 
     func importDroppedMusicURLs(_ urls: [URL]) {
-        importTrackURLs(urls, role: .music, target: .music)
+        guard let selectedMusicPlaylistID else { return }
+        importDroppedMusicURLs(urls, to: selectedMusicPlaylistID)
     }
 
     func importDroppedEffectURLs(_ urls: [URL]) {
-        importTrackURLs(urls, role: .effect, target: .effect)
+        guard let selectedEffectPlaylistID else { return }
+        importDroppedEffectURLs(urls, to: selectedEffectPlaylistID)
+    }
+
+    func importDroppedMusicURLs(_ urls: [URL], to playlistID: UUID) {
+        collectAndImportTrackURLs(urls, role: .music, target: .music(playlistID))
+    }
+
+    func importDroppedEffectURLs(_ urls: [URL], to playlistID: UUID) {
+        collectAndImportTrackURLs(urls, role: .effect, target: .effect(playlistID))
     }
 
     private func addFilesFromFinder(role: TrackRole, target: PlaylistTarget) {
-        switch target {
-        case .music:
-            guard selectedMusicPlaylistIndex != nil else { return }
-        case .effect:
-            guard selectedEffectPlaylistIndex != nil else { return }
-        }
+        guard containsPlaylist(target) else { return }
 
         let panel = NSOpenPanel()
         panel.title = L10n.tr("import.files.title")
@@ -499,12 +554,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     private func addFolderFromFinder(target: PlaylistTarget) {
-        switch target {
-        case .music:
-            guard selectedMusicPlaylistIndex != nil else { return }
-        case .effect:
-            guard selectedEffectPlaylistIndex != nil else { return }
-        }
+        guard containsPlaylist(target) else { return }
 
         let panel = NSOpenPanel()
         panel.title = L10n.tr("import.folder.title")
@@ -514,17 +564,14 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         panel.canChooseFiles = false
 
         if panel.runModal() == .OK, let folderURL = panel.url {
-            let role: TrackRole = target == .music ? .music : .effect
+            let role: TrackRole
+            switch target {
+            case .music: role = .music
+            case .effect: role = .effect
+            }
             let supportedExtensions = self.supportedExtensions
             Task { @MainActor [weak self] in
                 let urls = await Task.detached(priority: .userInitiated) {
-                    // Доступ к папке должен жить ровно столько, сколько длится фоновый обход.
-                    let didStartAccessing = folderURL.startAccessingSecurityScopedResource()
-                    defer {
-                        if didStartAccessing {
-                            folderURL.stopAccessingSecurityScopedResource()
-                        }
-                    }
                     return Self.scanTrackURLs(in: folderURL, supportedExtensions: supportedExtensions)
                 }.value
                 self?.importTrackURLs(urls, role: role, target: target)
@@ -545,12 +592,41 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
             }
         }
 
-        let newTracks = collected.map { makeTrackWithSecurityScope(from: $0, role: role) }
+        let newTracks = collected.map { makeTrack(from: $0, role: role) }
         switch target {
-        case .music:
-            appendUniqueMusicTracks(newTracks)
-        case .effect:
-            appendUniqueEffectTracks(newTracks)
+        case .music(let playlistID):
+            appendUniqueMusicTracks(newTracks, to: playlistID)
+        case .effect(let playlistID):
+            appendUniqueEffectTracks(newTracks, to: playlistID)
+        }
+    }
+
+    private func collectAndImportTrackURLs(_ urls: [URL], role: TrackRole, target: PlaylistTarget) {
+        guard containsPlaylist(target) else { return }
+        let supportedExtensions = self.supportedExtensions
+        Task { @MainActor [weak self] in
+            let collected = await Task.detached(priority: .userInitiated) {
+                var result: [URL] = []
+                for url in urls {
+                    var isDirectory: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                        result.append(contentsOf: Self.scanTrackURLs(in: url, supportedExtensions: supportedExtensions))
+                    } else if supportedExtensions.contains(url.pathExtension.lowercased()) {
+                        result.append(url)
+                    }
+                }
+                return result
+            }.value
+            self?.importTrackURLs(collected, role: role, target: target)
+        }
+    }
+
+    private func containsPlaylist(_ target: PlaylistTarget) -> Bool {
+        switch target {
+        case .music(let playlistID):
+            return musicPlaylists.contains { $0.id == playlistID }
+        case .effect(let playlistID):
+            return effectPlaylists.contains { $0.id == playlistID }
         }
     }
 
@@ -561,13 +637,19 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         }
 
         let removedTrack = musicPlaylists[playlistIndex].tracks.remove(at: trackIndex)
-        playbackHistory.removeAll { $0 == removedTrack.id }
-
-        if currentTrackID == removedTrack.id {
-            stop()
-            currentTrackID = nil
+        let playlistID = musicPlaylists[playlistIndex].id
+        playbackHistory.removeAll {
+            $0.playlistID == playlistID && $0.trackID == removedTrack.id
         }
 
+        if playbackMusicPlaylistID == musicPlaylists[playlistIndex].id, currentTrackID == removedTrack.id {
+            stopMusic()
+            let remaining = musicPlaylists[playlistIndex].tracks
+            let replacementIndex = min(trackIndex, max(0, remaining.count - 1))
+            currentTrackID = remaining.indices.contains(replacementIndex) ? remaining[replacementIndex].id : nil
+        }
+
+        reconcilePlaybackCollections()
         saveState()
     }
 
@@ -575,15 +657,28 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         guard !trackIDs.isEmpty else { return }
         guard let playlistIndex = selectedMusicPlaylistIndex else { return }
 
-        let removedCurrent = currentTrackID.map(trackIDs.contains) ?? false
+        let playlistID = musicPlaylists[playlistIndex].id
+        let currentIndex = currentTrackID.flatMap { id in
+            musicPlaylists[playlistIndex].tracks.firstIndex { $0.id == id }
+        }
+        let removedCurrent = playbackMusicPlaylistID == playlistID
+            && (currentTrackID.map(trackIDs.contains) ?? false)
         musicPlaylists[playlistIndex].tracks.removeAll { trackIDs.contains($0.id) }
-        playbackHistory.removeAll { trackIDs.contains($0) }
+        playbackHistory.removeAll {
+            $0.playlistID == playlistID && trackIDs.contains($0.trackID)
+        }
 
         if removedCurrent {
-            stop()
-            playbackMusicPlaylistID = selectedMusicPlaylistID
-            currentTrackID = musicPlaylists[playlistIndex].tracks.first?.id
+            stopMusic()
+            playbackMusicPlaylistID = playlistID
+            let replacementIndex = min(
+                currentIndex ?? 0,
+                max(0, musicPlaylists[playlistIndex].tracks.count - 1)
+            )
+            let remaining = musicPlaylists[playlistIndex].tracks
+            currentTrackID = remaining.indices.contains(replacementIndex) ? remaining[replacementIndex].id : nil
         }
+        reconcilePlaybackCollections()
         saveState()
     }
 
@@ -625,7 +720,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         }
 
         musicPlaylists[playlistIndex].tracks[trackIndex].volumeMultiplier = value
-        if currentTrackID == trackID {
+        if playbackMusicPlaylistID == playlistID, currentTrackID == trackID {
             applyMusicVolume(animated: false)
         }
         saveState()
@@ -692,65 +787,62 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     // MARK: - Управление воспроизведением музыки
 
     func playMusicTrack(_ track: Track) {
-        playbackMusicPlaylistID = selectedMusicPlaylistID
-        switchToTrack(track.id, addCurrentTrackToHistory: true)
+        guard let selectedMusicPlaylistID else { return }
+        _ = startMusic(
+            reference: MusicTrackReference(playlistID: selectedMusicPlaylistID, trackID: track.id),
+            addCurrentToHistory: true
+        )
     }
 
     func playMusicTrack(playlistID: UUID, trackID: UUID) -> Bool {
-        guard let playlistIndex = musicPlaylists.firstIndex(where: { $0.id == playlistID }),
-              musicPlaylists[playlistIndex].tracks.contains(where: { $0.id == trackID }) else {
-            return false
-        }
-        playbackMusicPlaylistID = playlistID
-        switchToTrack(trackID, addCurrentTrackToHistory: true)
+        let reference = MusicTrackReference(playlistID: playlistID, trackID: trackID)
+        guard track(for: reference) != nil else { return false }
+        _ = startMusic(reference: reference, addCurrentToHistory: true)
         return true
     }
 
     func playCurrentTrack() {
-        guard let track = currentTrack else { return }
-
-        releaseScopedResource()
-
-        do {
-            let playbackURL = try resolvePlaybackURL(for: track)
-
-            musicPlayer = try AVAudioPlayer(contentsOf: playbackURL)
-            musicPlayer?.delegate = self
-            applyMusicVolume(animated: false)
-            musicPlayer?.prepareToPlay()
-            musicPlayer?.play()
-
-            duration = musicPlayer?.duration ?? 0
-            currentTime = musicPlayer?.currentTime ?? 0
-            isPlaying = true
-            errorMessage = nil
-        } catch {
-            isPlaying = false
-            errorMessage = L10n.tr("error.play_file", track.title, error.localizedDescription)
-        }
+        guard let reference = currentMusicReference else { return }
+        _ = startMusic(reference: reference, addCurrentToHistory: false)
     }
 
     func playPause() {
+        if pauseFadeTask != nil {
+            pauseFadeTask?.cancel()
+            pauseFadeTask = nil
+            applyMusicVolume(animated: false)
+            isPlaying = musicPlayer != nil
+            return
+        }
+
         if isPlaying {
             if isMusicFadeOutOnPauseEnabled {
                 pauseWithFadeOut()
             } else {
                 pause()
             }
-        } else if let musicPlayer = musicPlayer {
+        } else if let musicPlayer {
             applyMusicVolume(animated: false)
-            musicPlayer.play()
-            isPlaying = true
-        } else {
-            if currentTrack == nil, let first = selectedMusicPlaylist?.tracks.first {
-                playbackMusicPlaylistID = selectedMusicPlaylistID
-                currentTrackID = first.id
+            if musicPlayer.play() {
+                isPlaying = true
+                errorMessage = nil
             }
-            playCurrentTrack()
+        } else {
+            if let reference = currentMusicReference {
+                _ = startMusic(reference: reference, addCurrentToHistory: false)
+            } else if let playlistID = selectedMusicPlaylistID,
+                      let first = selectedMusicPlaylist?.tracks.first {
+                _ = startMusic(
+                    reference: MusicTrackReference(playlistID: playlistID, trackID: first.id),
+                    addCurrentToHistory: false
+                )
+            }
         }
     }
 
     func pause() {
+        pauseFadeTask?.cancel()
+        pauseFadeTask = nil
         musicPlayer?.pause()
         isPlaying = false
     }
@@ -763,30 +855,50 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
 
         let targetVolume = Float(effectiveMusicVolume())
         musicPlayer.setVolume(0, fadeDuration: 1.2)
-        let expectedPlayerID = ObjectIdentifier(musicPlayer)
+        let expectedPlayerID = ObjectIdentifier(musicPlayer as AnyObject)
 
-        Task { @MainActor [weak self] in
+        pauseFadeTask?.cancel()
+        pauseFadeTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 1_250_000_000)
-            guard let self,
+            guard !Task.isCancelled,
+                  let self,
                   let musicPlayer = self.musicPlayer,
-                  ObjectIdentifier(musicPlayer) == expectedPlayerID else {
+                  ObjectIdentifier(musicPlayer as AnyObject) == expectedPlayerID else {
                 return
             }
             musicPlayer.pause()
             musicPlayer.volume = targetVolume
             currentTime = musicPlayer.currentTime
             isPlaying = false
+            pauseFadeTask = nil
         }
     }
 
-    func stop() {
+    func stopMusic() {
+        pauseFadeTask?.cancel()
+        pauseFadeTask = nil
+        musicPlayer?.eventDelegate = nil
         musicPlayer?.stop()
         musicPlayer = nil
-        stopAllEffects()
+        musicFileLease?.close()
+        musicFileLease = nil
         isPlaying = false
         currentTime = 0
         duration = 0
-        releaseScopedResource()
+    }
+
+    func stopEffects() {
+        stopAllEffects()
+    }
+
+    func stopAll() {
+        stopMusic()
+        stopEffects()
+    }
+
+    /// Backward-compatible alias for the existing Stop All call sites.
+    func stop() {
+        stopAll()
     }
 
     func seek(to time: Double) {
@@ -795,35 +907,48 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     func nextTrack() {
-        guard let playlist = playbackMusicPlaylist, !playlist.tracks.isEmpty else { return }
+        advanceToNextTrack()
+    }
+
+    private func advanceToNextTrack() {
+        guard let playlist = playbackMusicPlaylist, !playlist.tracks.isEmpty else {
+            stopMusic()
+            return
+        }
 
         if isShuffleEnabled {
-            playRandomTrack(from: playlist)
+            advanceShuffled(in: playlist)
             return
         }
 
         guard let currentTrackID = currentTrackID,
               let currentIndex = playlist.tracks.firstIndex(where: { $0.id == currentTrackID }) else {
-            self.currentTrackID = playlist.tracks.first?.id
-            playCurrentTrack()
+            guard let firstID = playlist.tracks.first?.id else { return }
+            _ = startMusic(
+                reference: MusicTrackReference(playlistID: playlist.id, trackID: firstID),
+                addCurrentToHistory: true
+            )
             return
         }
 
         let nextIndex = currentIndex + 1
 
         if nextIndex < playlist.tracks.count {
-            switchToTrack(playlist.tracks[nextIndex].id, addCurrentTrackToHistory: true)
+            _ = startMusic(
+                reference: MusicTrackReference(playlistID: playlist.id, trackID: playlist.tracks[nextIndex].id),
+                addCurrentToHistory: true
+            )
         } else {
             switch repeatMode {
-            case .off:
-                stop()
-
-            case .one:
-                playCurrentTrack()
+            case .off, .one:
+                stopMusic()
 
             case .all:
                 if let firstID = playlist.tracks.first?.id {
-                    switchToTrack(firstID, addCurrentTrackToHistory: true)
+                    _ = startMusic(
+                        reference: MusicTrackReference(playlistID: playlist.id, trackID: firstID),
+                        addCurrentToHistory: true
+                    )
                 }
             }
         }
@@ -838,32 +963,47 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
             return
         }
 
-        if isShuffleEnabled, let previousID = playbackHistory.popLast() {
-            currentTrackID = previousID
-            playCurrentTrack()
+        while let stale = playbackHistory.last, track(for: stale) == nil {
+            playbackHistory.removeLast()
+        }
+
+        if let previous = playbackHistory.last,
+           isShuffleEnabled || previous.playlistID != playlist.id {
+            if startMusic(reference: previous, addCurrentToHistory: false) {
+                playbackHistory.removeLast()
+            }
             return
         }
 
         guard let currentTrackID = currentTrackID,
               let currentIndex = playlist.tracks.firstIndex(where: { $0.id == currentTrackID }) else {
-            self.currentTrackID = playlist.tracks.first?.id
-            playCurrentTrack()
+            guard let firstID = playlist.tracks.first?.id else { return }
+            _ = startMusic(
+                reference: MusicTrackReference(playlistID: playlist.id, trackID: firstID),
+                addCurrentToHistory: false
+            )
             return
         }
 
         let previousIndex = currentIndex - 1
 
         if previousIndex >= 0 {
-            switchToTrack(playlist.tracks[previousIndex].id, addCurrentTrackToHistory: false)
+            _ = startMusic(
+                reference: MusicTrackReference(playlistID: playlist.id, trackID: playlist.tracks[previousIndex].id),
+                addCurrentToHistory: false
+            )
         } else {
             switch repeatMode {
             case .off, .one:
-                self.currentTrackID = playlist.tracks.first?.id
-                playCurrentTrack()
+                musicPlayer?.currentTime = 0
+                currentTime = 0
 
             case .all:
                 if let lastID = playlist.tracks.last?.id {
-                    switchToTrack(lastID, addCurrentTrackToHistory: false)
+                    _ = startMusic(
+                        reference: MusicTrackReference(playlistID: playlist.id, trackID: lastID),
+                        addCurrentToHistory: false
+                    )
                 }
             }
         }
@@ -872,23 +1012,39 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     // MARK: - Управление эффектами
 
     func playEffect(_ track: Track) {
+        _ = startEffect(track)
+    }
+
+    @discardableResult
+    private func startEffect(_ track: Track) -> Bool {
+        var candidateLease: FileAccessLease?
+        var candidatePlayer: (any AudioPlayerAdapter)?
         do {
-            let (playbackURL, hasScope) = try resolveEffectPlaybackURL(for: track)
-            let effectPlayer = try AVAudioPlayer(contentsOf: playbackURL)
-            effectPlayer.delegate = self
-            effectPlayer.volume = Float(track.outputVolume(masterVolume: effectsVolume))
-            effectPlayer.prepareToPlay()
+            let lease = try fileAccessResolver.resolve(track: track)
+            candidateLease = lease
+            let player = try audioPlayerFactory.makePlayer(url: lease.url)
+            candidatePlayer = player
+            player.eventDelegate = self
+            player.volume = Float(track.outputVolume(masterVolume: effectsVolume))
+            guard player.prepareToPlay(), player.play() else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
 
-            let key = ObjectIdentifier(effectPlayer)
-            effectPlayers[key] = effectPlayer
-            effectScopedResources[key] = (playbackURL, hasScope)
-            effectVolumeMultipliers[key] = track.volumeMultiplier
-
+            refreshFileReference(
+                for: track.id,
+                resolvedURL: lease.url,
+                refreshedBookmarkData: lease.refreshedBookmarkData
+            )
+            let key = ObjectIdentifier(player as AnyObject)
+            effectVoices[key] = EffectVoice(player: player, lease: lease, volumeMultiplier: track.volumeMultiplier)
+            activeEffectCount = effectVoices.count
             beginDuckingIfNeeded()
-            effectPlayer.play()
             errorMessage = nil
+            return true
         } catch {
+            cleanupEffectResources(player: candidatePlayer, lease: candidateLease)
             errorMessage = L10n.tr("error.play_effect", track.title, error.localizedDescription)
+            return false
         }
     }
 
@@ -897,17 +1053,15 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
               let track = effectPlaylists[playlistIndex].effects.first(where: { $0.id == trackID }) else {
             return false
         }
-        playEffect(track)
+        // Bool сообщает вызывающему коду, что playlist/track-пара существует.
+        // Временный audio-отказ не должен удалять валидный хоткей этой пары.
+        _ = startEffect(track)
         return true
     }
 
     func playEffectAtIndex(_ index: Int) {
         guard index >= 0, index < effectTracks.count else { return }
         playEffect(effectTracks[index])
-    }
-
-    func stopEffects() {
-        stopAllEffects()
     }
 
     func adjustMusicVolume(by delta: Double) {
@@ -918,64 +1072,368 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         effectsVolume = clampedUnitVolume(effectsVolume + delta)
     }
 
-    // MARK: - AVAudioPlayerDelegate
+    // MARK: - AudioPlayerAdapterDelegate
 
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        let effectKey = ObjectIdentifier(player)
-        if effectPlayers[effectKey] != nil {
-            effectPlayers[effectKey] = nil
-            releaseEffectScopedResource(for: effectKey)
-            effectVolumeMultipliers[effectKey] = nil
-            endDuckingIfNeeded()
+    func audioPlayerAdapterDidFinish(_ player: any AudioPlayerAdapter, successfully flag: Bool) {
+        let key = ObjectIdentifier(player as AnyObject)
+        if effectVoices[key] != nil {
+            cleanupEffectVoice(for: key)
             return
         }
 
+        guard let musicPlayer,
+              ObjectIdentifier(musicPlayer as AnyObject) == key else { return }
+        guard flag else {
+            stopMusic()
+            return
+        }
         switch repeatMode {
         case .one:
             player.currentTime = 0
-            player.play()
-            isPlaying = true
+            if player.play() {
+                isPlaying = true
+            } else {
+                stopMusic()
+            }
 
         case .off, .all:
-            nextTrack()
+            advanceToNextTrack()
         }
+    }
+
+    func audioPlayerAdapter(_ player: any AudioPlayerAdapter, decodeError error: Error?) {
+        let key = ObjectIdentifier(player as AnyObject)
+        if effectVoices[key] != nil {
+            cleanupEffectVoice(for: key)
+            return
+        }
+
+        guard let musicPlayer,
+              ObjectIdentifier(musicPlayer as AnyObject) == key else { return }
+        let title = currentTrack?.title ?? L10n.tr("player.nothing_playing")
+        stopMusic()
+        errorMessage = L10n.tr("error.play_file", title, error?.localizedDescription ?? L10n.tr("error.unknown"))
     }
 
     // MARK: - Внутренняя логика
 
-    private func playRandomTrack(from playlist: Playlist) {
-        guard !playlist.tracks.isEmpty else { return }
+    private var currentMusicReference: MusicTrackReference? {
+        guard let playlistID = playbackMusicPlaylistID ?? selectedMusicPlaylistID,
+              let currentTrackID else { return nil }
+        return MusicTrackReference(playlistID: playlistID, trackID: currentTrackID)
+    }
 
-        if playlist.tracks.count == 1 {
-            currentTrackID = playlist.tracks[0].id
-            playCurrentTrack()
+    private func track(for reference: MusicTrackReference) -> Track? {
+        musicPlaylists
+            .first { $0.id == reference.playlistID }?
+            .tracks
+            .first { $0.id == reference.trackID }
+    }
+
+    @discardableResult
+    private func startMusic(
+        reference: MusicTrackReference,
+        addCurrentToHistory: Bool,
+        resetShuffleDeck: Bool = true
+    ) -> Bool {
+        guard let targetTrack = track(for: reference) else { return false }
+
+        var candidateLease: FileAccessLease?
+        var candidatePlayer: (any AudioPlayerAdapter)?
+        do {
+            let lease = try fileAccessResolver.resolve(track: targetTrack)
+            candidateLease = lease
+            let player = try audioPlayerFactory.makePlayer(url: lease.url)
+            candidatePlayer = player
+            player.eventDelegate = self
+            player.volume = Float(effectiveMusicVolume(for: targetTrack))
+            guard player.prepareToPlay(), player.play() else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+
+            let previousReference = currentMusicReference
+            let oldPlayer = musicPlayer
+            let oldLease = musicFileLease
+
+            pauseFadeTask?.cancel()
+            pauseFadeTask = nil
+            musicPlayer = player
+            musicFileLease = lease
+            playbackMusicPlaylistID = reference.playlistID
+            currentTrackID = reference.trackID
+            duration = player.duration
+            currentTime = player.currentTime
+            isPlaying = true
+
+            if addCurrentToHistory,
+               oldPlayer != nil,
+               let previousReference,
+               previousReference != reference,
+               track(for: previousReference) != nil {
+                playbackHistory.append(previousReference)
+            }
+            if resetShuffleDeck {
+                rebuildShuffleDeck()
+            }
+            refreshFileReference(
+                for: targetTrack.id,
+                resolvedURL: lease.url,
+                refreshedBookmarkData: lease.refreshedBookmarkData
+            )
+
+            oldPlayer?.eventDelegate = nil
+            oldPlayer?.stop()
+            oldLease?.close()
+            errorMessage = nil
+            return true
+        } catch {
+            candidatePlayer?.eventDelegate = nil
+            candidatePlayer?.stop()
+            candidateLease?.close()
+            errorMessage = L10n.tr("error.play_file", targetTrack.title, error.localizedDescription)
+            return false
+        }
+    }
+
+    private func rebuildShuffleDeck() {
+        guard isShuffleEnabled, let playlist = playbackMusicPlaylist else {
+            shuffleDeck = nil
+            return
+        }
+        shuffleDeck = ShuffleDeck(
+            playlistID: playlist.id,
+            trackIDs: playlist.tracks.map(\.id),
+            excluding: currentTrackID
+        )
+    }
+
+    private func reconcilePlaybackCollections() {
+        playbackHistory.removeAll { track(for: $0) == nil }
+
+        if let reference = currentMusicReference, track(for: reference) == nil {
+            stopMusic()
+            currentTrackID = nil
+            playbackMusicPlaylistID = nil
+        }
+
+        guard isShuffleEnabled, let playlist = playbackMusicPlaylist else {
+            shuffleDeck = nil
+            return
+        }
+        if shuffleDeck?.playlistID == playlist.id {
+            shuffleDeck?.reconcile(availableTrackIDs: playlist.tracks.map(\.id))
+        } else {
+            rebuildShuffleDeck()
+        }
+    }
+
+    private func advanceShuffled(in playlist: Playlist) {
+        if shuffleDeck?.playlistID != playlist.id {
+            shuffleDeck = ShuffleDeck(
+                playlistID: playlist.id,
+                trackIDs: playlist.tracks.map(\.id),
+                excluding: currentTrackID
+            )
+        }
+        let effectiveRepeatMode: RepeatMode = repeatMode == .one ? .off : repeatMode
+        guard let next = shuffleDeck?.drawNext(
+            repeatMode: effectiveRepeatMode,
+            availableTrackIDs: playlist.tracks.map(\.id),
+            currentTrackID: currentTrackID
+        ) else {
+            stopMusic()
+            return
+        }
+        _ = startMusic(
+            reference: next,
+            addCurrentToHistory: true,
+            resetShuffleDeck: false
+        )
+    }
+
+    // MARK: - Перенос и импорт треков
+
+    @discardableResult
+    func transferMusicTracks(
+        ids: Set<UUID>,
+        from sourcePlaylistID: UUID,
+        to destinationPlaylistID: UUID,
+        operation: TrackTransferOperation
+    ) -> TrackTransferResult {
+        guard !ids.isEmpty else {
+            return emptyTransferResult(
+                ids: ids,
+                role: .music,
+                from: sourcePlaylistID,
+                to: destinationPlaylistID,
+                operation: operation
+            )
+        }
+        guard let result = musicPlaylists.transferMusicTracks(
+            ids,
+            from: sourcePlaylistID,
+            to: destinationPlaylistID,
+            operation: operation
+        ) else {
+            return emptyTransferResult(
+                ids: ids,
+                role: .music,
+                from: sourcePlaylistID,
+                to: destinationPlaylistID,
+                operation: operation
+            )
+        }
+
+        if operation == .move {
+            let movedIDs = Set(result.transferredSourceTrackIDs)
+            playbackHistory = playbackHistory.map { reference in
+                guard reference.playlistID == sourcePlaylistID,
+                      movedIDs.contains(reference.trackID) else {
+                    return reference
+                }
+                return MusicTrackReference(
+                    playlistID: destinationPlaylistID,
+                    trackID: reference.trackID
+                )
+            }
+
+            if playbackMusicPlaylistID == sourcePlaylistID,
+               let currentTrackID,
+               movedIDs.contains(currentTrackID) {
+                // Плеер и lease продолжают жить: меняется только логический playback-контекст.
+                playbackMusicPlaylistID = destinationPlaylistID
+            }
+        }
+
+        reconcilePlaybackCollections()
+        saveState()
+        publishTransferConflicts(result)
+        return result
+    }
+
+    @discardableResult
+    func transferEffectTracks(
+        ids: Set<UUID>,
+        from sourcePlaylistID: UUID,
+        to destinationPlaylistID: UUID,
+        operation: TrackTransferOperation
+    ) -> TrackTransferResult {
+        guard !ids.isEmpty else {
+            return emptyTransferResult(
+                ids: ids,
+                role: .effect,
+                from: sourcePlaylistID,
+                to: destinationPlaylistID,
+                operation: operation
+            )
+        }
+        guard let result = effectPlaylists.transferEffectTracks(
+            ids,
+            from: sourcePlaylistID,
+            to: destinationPlaylistID,
+            operation: operation
+        ) else {
+            return emptyTransferResult(
+                ids: ids,
+                role: .effect,
+                from: sourcePlaylistID,
+                to: destinationPlaylistID,
+                operation: operation
+            )
+        }
+
+        // Уже запущенные SFX-войсы не привязаны к положению карточки и продолжают играть.
+        saveState()
+        publishTransferConflicts(result)
+        return result
+    }
+
+    private func emptyTransferResult(
+        ids: Set<UUID>,
+        role: TrackRole,
+        from sourcePlaylistID: UUID,
+        to destinationPlaylistID: UUID,
+        operation: TrackTransferOperation
+    ) -> TrackTransferResult {
+        TrackTransferResult(
+            operation: operation,
+            role: role,
+            sourcePlaylistID: sourcePlaylistID,
+            destinationPlaylistID: destinationPlaylistID,
+            transferred: [],
+            duplicateTrackIDs: [],
+            missingTrackIDs: ids.sorted { $0.uuidString < $1.uuidString }
+        )
+    }
+
+    func reorderMusicTracks(ids: Set<UUID>, in playlistID: UUID, relativeTo targetTrackID: UUID) {
+        guard musicPlaylists.reorderMusicTracks(ids, in: playlistID, to: targetTrackID) else { return }
+        reconcilePlaybackCollections()
+        saveState()
+    }
+
+    func reorderEffectTracks(ids: Set<UUID>, in playlistID: UUID, relativeTo targetTrackID: UUID) {
+        guard effectPlaylists.reorderEffectTracks(ids, in: playlistID, to: targetTrackID) else { return }
+        saveState()
+    }
+
+    func reorderMusicTracksToEnd(ids: Set<UUID>, in playlistID: UUID) {
+        guard musicPlaylists.reorderMusicTracksToEnd(ids, in: playlistID) else { return }
+        reconcilePlaybackCollections()
+        saveState()
+    }
+
+    func reorderEffectTracksToEnd(ids: Set<UUID>, in playlistID: UUID) {
+        guard effectPlaylists.reorderEffectTracksToEnd(ids, in: playlistID) else { return }
+        saveState()
+    }
+
+    private func publishTransferConflicts(_ result: TrackTransferResult) {
+        guard result.hasPartialConflicts else {
+            importConflictSummary = nil
             return
         }
 
-        let currentID = currentTrackID
-        let candidates = playlist.tracks.filter { $0.id != currentID }
-
-        guard let nextTrack = candidates.randomElement() else { return }
-        switchToTrack(nextTrack.id, addCurrentTrackToHistory: true)
-    }
-
-    private func switchToTrack(_ newTrackID: UUID, addCurrentTrackToHistory: Bool) {
-        if addCurrentTrackToHistory,
-           let currentTrackID = currentTrackID,
-           currentTrackID != newTrackID {
-            playbackHistory.append(currentTrackID)
+        let duplicateTitles: [String]
+        switch result.role {
+        case .music:
+            duplicateTitles = musicPlaylists
+                .first { $0.id == result.sourcePlaylistID }?
+                .tracks
+                .filter { result.duplicateTrackIDs.contains($0.id) }
+                .map(\.title) ?? []
+        case .effect:
+            duplicateTitles = effectPlaylists
+                .first { $0.id == result.sourcePlaylistID }?
+                .effects
+                .filter { result.duplicateTrackIDs.contains($0.id) }
+                .map(\.title) ?? []
         }
 
-        currentTrackID = newTrackID
-        playCurrentTrack()
+        importConflictSummary = ImportConflictSummary(
+            target: result.role == .music
+                ? L10n.tr("sidebar.music_playlists")
+                : L10n.tr("sidebar.sfx_playlists"),
+            attemptedCount: result.attemptedCount,
+            addedCount: result.transferredCount,
+            duplicateCount: result.duplicateCount + result.missingTrackIDs.count,
+            duplicateTitles: Array(duplicateTitles.prefix(8))
+        )
     }
 
-    private func appendUniqueMusicTracks(_ newTracks: [Track]) {
-        guard let playlistIndex = selectedMusicPlaylistIndex else { return }
+    private func appendUniqueMusicTracks(_ newTracks: [Track], to playlistID: UUID) {
+        guard let playlistIndex = musicPlaylists.firstIndex(where: { $0.id == playlistID }) else { return }
 
-        let existingKeys = Set(musicPlaylists[playlistIndex].tracks.map(trackIdentityKey))
-        let filteredTracks = newTracks.filter { !existingKeys.contains(trackIdentityKey($0)) }
-        let duplicates = newTracks.filter { existingKeys.contains(trackIdentityKey($0)) }
+        var seen = Set(musicPlaylists[playlistIndex].tracks.map(trackIdentityKey))
+        var filteredTracks: [Track] = []
+        var duplicates: [Track] = []
+        for track in newTracks {
+            if seen.insert(trackIdentityKey(track)).inserted {
+                filteredTracks.append(track)
+            } else {
+                duplicates.append(track)
+            }
+        }
 
         guard !filteredTracks.isEmpty else {
             errorMessage = L10n.tr("error.no_new_audio_files")
@@ -997,18 +1455,27 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
             duplicates: duplicates
         )
 
-        if currentTrackID == nil, let first = musicPlaylists[playlistIndex].tracks.first {
-            playbackMusicPlaylistID = selectedMusicPlaylistID
+        if currentTrackID == nil,
+           selectedMusicPlaylistID == playlistID,
+           let first = musicPlaylists[playlistIndex].tracks.first {
+            playbackMusicPlaylistID = playlistID
             currentTrackID = first.id
         }
     }
 
-    private func appendUniqueEffectTracks(_ newTracks: [Track]) {
-        guard let playlistIndex = selectedEffectPlaylistIndex else { return }
+    private func appendUniqueEffectTracks(_ newTracks: [Track], to playlistID: UUID) {
+        guard let playlistIndex = effectPlaylists.firstIndex(where: { $0.id == playlistID }) else { return }
 
-        let existingKeys = Set(effectPlaylists[playlistIndex].effects.map(trackIdentityKey))
-        let filteredTracks = newTracks.filter { !existingKeys.contains(trackIdentityKey($0)) }
-        let duplicates = newTracks.filter { existingKeys.contains(trackIdentityKey($0)) }
+        var seen = Set(effectPlaylists[playlistIndex].effects.map(trackIdentityKey))
+        var filteredTracks: [Track] = []
+        var duplicates: [Track] = []
+        for track in newTracks {
+            if seen.insert(trackIdentityKey(track)).inserted {
+                filteredTracks.append(track)
+            } else {
+                duplicates.append(track)
+            }
+        }
 
         guard !filteredTracks.isEmpty else {
             errorMessage = L10n.tr("error.no_new_audio_files")
@@ -1049,7 +1516,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
             duplicateCount: duplicates.count,
             duplicateTitles: Array(duplicates.prefix(8)).map(\.title)
         )
-        AppTelemetry.shared.warning(
+        telemetry.warning(
             "Import duplicates skipped",
             metadata: [
                 "target": target,
@@ -1060,45 +1527,20 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         )
     }
 
-    private func makeTrackWithSecurityScope(from url: URL, role: TrackRole) -> Track {
-        let didStartAccessing = url.startAccessingSecurityScopedResource()
-        defer {
-            if didStartAccessing {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        return makeTrack(from: url, role: role)
-    }
-
     private func makeTrack(from url: URL, role: TrackRole) -> Track {
-        let bookmarkData = try? url.bookmarkData(
-            options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
+        let standardizedURL = url.standardizedFileURL
+        let bookmarkData = fileAccessResolver.bookmarkData(for: standardizedURL)
 
         return Track(
-            title: url.deletingPathExtension().lastPathComponent,
-            path: url.path,
+            title: standardizedURL.deletingPathExtension().lastPathComponent,
+            path: standardizedURL.path,
             role: role,
             bookmarkData: bookmarkData
         )
     }
 
     private func trackIdentityKey(_ track: Track) -> String {
-        if let bookmarkData = track.bookmarkData {
-            var isStale = false
-            if let resolvedURL = try? URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withoutUI, .withoutMounting],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            ) {
-                return resolvedURL.standardizedFileURL.path.lowercased()
-            }
-        }
-        return URL(fileURLWithPath: track.path).standardizedFileURL.path.lowercased()
+        TrackFileIdentity.key(for: track)
     }
 
     private nonisolated static func scanTrackURLs(in folderURL: URL, supportedExtensions: Set<String>) -> [URL] {
@@ -1106,7 +1548,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
 
         guard let enumerator = fileManager.enumerator(
             at: folderURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
+            includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) else {
             return []
@@ -1115,129 +1557,78 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         var urls: [URL] = []
 
         for case let fileURL as URL in enumerator {
+            guard (try? fileURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != true else {
+                continue
+            }
             let fileExtension = fileURL.pathExtension.lowercased()
             guard supportedExtensions.contains(fileExtension) else { continue }
             urls.append(fileURL)
         }
 
-        return urls.sorted {
-            $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending
+        return urls.sorted { lhs, rhs in
+            let nameOrder = lhs.lastPathComponent.localizedCaseInsensitiveCompare(rhs.lastPathComponent)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
+            }
+            return lhs.standardizedFileURL.path.compare(
+                rhs.standardizedFileURL.path,
+                options: [.caseInsensitive, .literal]
+            ) == .orderedAscending
         }
     }
 
-    private func resolvePlaybackURL(for track: Track) throws -> URL {
-        if let bookmarkData = track.bookmarkData {
-            var isStale = false
-
-            let resolvedURL = try URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )
-
-            let didStartAccessing = resolvedURL.startAccessingSecurityScopedResource()
-            activeScopedURL = resolvedURL
-            hasActiveSecurityScope = didStartAccessing
-
-            guard didStartAccessing else {
-                throw NSError(
-                    domain: NSCocoaErrorDomain,
-                    code: NSFileReadNoPermissionError,
-                    userInfo: [NSLocalizedDescriptionKey: L10n.tr("error.no_file_access")]
-                )
+    private func refreshFileReference(
+        for trackID: UUID,
+        resolvedURL: URL,
+        refreshedBookmarkData: Data?
+    ) {
+        let normalizedPath = resolvedURL.standardizedFileURL.path
+        if let musicPlaylistIndex = musicPlaylists.firstIndex(where: { playlist in
+            playlist.tracks.contains(where: { $0.id == trackID })
+        }),
+        let musicTrackIndex = musicPlaylists[musicPlaylistIndex].tracks.firstIndex(where: { $0.id == trackID }) {
+            var didChange = false
+            if musicPlaylists[musicPlaylistIndex].tracks[musicTrackIndex].path != normalizedPath {
+                musicPlaylists[musicPlaylistIndex].tracks[musicTrackIndex].path = normalizedPath
+                didChange = true
             }
-
-            if isStale {
-                // Обновляем устаревший bookmark, чтобы сохранить доступ после перезапуска приложения.
-                refreshBookmark(for: track.id, with: resolvedURL)
+            if let refreshedBookmarkData,
+               musicPlaylists[musicPlaylistIndex].tracks[musicTrackIndex].bookmarkData != refreshedBookmarkData {
+                musicPlaylists[musicPlaylistIndex].tracks[musicTrackIndex].bookmarkData = refreshedBookmarkData
+                didChange = true
             }
-
-            return resolvedURL
+            if didChange { saveState() }
+            return
         }
 
-        return track.url
-    }
-
-    private func resolveEffectPlaybackURL(for track: Track) throws -> (url: URL, hasScope: Bool) {
-        if let bookmarkData = track.bookmarkData {
-            var isStale = false
-
-            let resolvedURL = try URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )
-
-            let didStartAccessing = resolvedURL.startAccessingSecurityScopedResource()
-            guard didStartAccessing else {
-                throw NSError(
-                    domain: NSCocoaErrorDomain,
-                    code: NSFileReadNoPermissionError,
-                    userInfo: [NSLocalizedDescriptionKey: L10n.tr("error.no_effect_access")]
-                )
+        if let effectPlaylistIndex = effectPlaylists.firstIndex(where: { playlist in
+            playlist.effects.contains(where: { $0.id == trackID })
+        }),
+        let effectTrackIndex = effectPlaylists[effectPlaylistIndex].effects.firstIndex(where: { $0.id == trackID }) {
+            var didChange = false
+            if effectPlaylists[effectPlaylistIndex].effects[effectTrackIndex].path != normalizedPath {
+                effectPlaylists[effectPlaylistIndex].effects[effectTrackIndex].path = normalizedPath
+                didChange = true
             }
-
-            if isStale {
-                refreshBookmark(for: track.id, with: resolvedURL)
+            if let refreshedBookmarkData,
+               effectPlaylists[effectPlaylistIndex].effects[effectTrackIndex].bookmarkData != refreshedBookmarkData {
+                effectPlaylists[effectPlaylistIndex].effects[effectTrackIndex].bookmarkData = refreshedBookmarkData
+                didChange = true
             }
-
-            return (resolvedURL, true)
-        }
-
-        return (track.url, false)
-    }
-
-    private func releaseScopedResource() {
-        if hasActiveSecurityScope, let activeScopedURL = activeScopedURL {
-            activeScopedURL.stopAccessingSecurityScopedResource()
-        }
-
-        activeScopedURL = nil
-        hasActiveSecurityScope = false
-    }
-
-    private func refreshBookmark(for trackID: UUID, with url: URL) {
-        do {
-            let newBookmarkData = try url.bookmarkData(
-                options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-
-            if let musicPlaylistIndex = musicPlaylists.firstIndex(where: { playlist in
-                playlist.tracks.contains(where: { $0.id == trackID })
-            }),
-            let musicTrackIndex = musicPlaylists[musicPlaylistIndex].tracks.firstIndex(where: { $0.id == trackID }) {
-                musicPlaylists[musicPlaylistIndex].tracks[musicTrackIndex].bookmarkData = newBookmarkData
-                saveState()
-                return
-            }
-
-            if let effectPlaylistIndex = effectPlaylists.firstIndex(where: { playlist in
-                playlist.effects.contains(where: { $0.id == trackID })
-            }),
-            let effectTrackIndex = effectPlaylists[effectPlaylistIndex].effects.firstIndex(where: { $0.id == trackID }) {
-                effectPlaylists[effectPlaylistIndex].effects[effectTrackIndex].bookmarkData = newBookmarkData
-                saveState()
-            }
-        } catch {
-            // Не критично.
+            if didChange { saveState() }
         }
     }
 
-    private func startTimer() {
-        timer = Timer.scheduledTimer(
-            timeInterval: 0.25,
-            target: self,
-            selector: #selector(updatePlaybackTimer),
-            userInfo: nil,
-            repeats: true
-        )
+    private func startPlaybackProgressUpdates() {
+        playbackProgressTask?.cancel()
+        playbackProgressTask = playbackScheduler.scheduleRepeating(
+            everyNanoseconds: 250_000_000
+        ) { [weak self] in
+            self?.updatePlaybackProgress()
+        }
     }
 
-    @objc private func updatePlaybackTimer() {
+    private func updatePlaybackProgress() {
         guard let musicPlayer else {
             currentTime = 0
             duration = 0
@@ -1249,24 +1640,29 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     private func stopAllEffects() {
-        // Явно останавливаем и освобождаем каждый SFX-плеер, чтобы не копить ресурсы.
-        for (key, effectPlayer) in effectPlayers {
-            effectPlayer.stop()
-            releaseEffectScopedResource(for: key)
+        for voice in effectVoices.values {
+            cleanupEffectResources(player: voice.player, lease: voice.lease)
         }
-
-        effectPlayers.removeAll()
-        effectVolumeMultipliers.removeAll()
+        effectVoices.removeAll()
+        activeEffectCount = 0
         activeDuckCount = 0
         applyMusicVolume(animated: true)
     }
 
-    private func releaseEffectScopedResource(for key: ObjectIdentifier) {
-        guard let resource = effectScopedResources[key] else { return }
-        if resource.hasScope {
-            resource.url.stopAccessingSecurityScopedResource()
-        }
-        effectScopedResources[key] = nil
+    private func cleanupEffectVoice(for key: ObjectIdentifier) {
+        guard let voice = effectVoices.removeValue(forKey: key) else { return }
+        cleanupEffectResources(player: voice.player, lease: voice.lease)
+        activeEffectCount = effectVoices.count
+        endDuckingIfNeeded()
+    }
+
+    private func cleanupEffectResources(
+        player: (any AudioPlayerAdapter)?,
+        lease: FileAccessLease?
+    ) {
+        player?.eventDelegate = nil
+        player?.stop()
+        lease?.close()
     }
 
     private func beginDuckingIfNeeded() {
@@ -1280,11 +1676,13 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         applyMusicVolume(animated: true)
     }
 
-    private func effectiveMusicVolume() -> Double {
+    private func effectiveMusicVolume(for track: Track? = nil) -> Double {
         let activeDucking = activeDuckCount > 0 ? duckingAmount : 1
         return Track.outputVolume(
             masterVolume: volume,
-            trackMultiplier: currentTrack?.volumeMultiplier ?? Track.defaultVolumeMultiplier,
+            trackMultiplier: track?.volumeMultiplier
+                ?? currentTrack?.volumeMultiplier
+                ?? Track.defaultVolumeMultiplier,
             duckingMultiplier: activeDucking
         )
     }
@@ -1300,11 +1698,11 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     private func applyEffectsVolume() {
-        for (key, player) in effectPlayers {
-            player.volume = Float(
+        for voice in effectVoices.values {
+            voice.player.volume = Float(
                 Track.outputVolume(
                     masterVolume: effectsVolume,
-                    trackMultiplier: effectVolumeMultipliers[key] ?? Track.defaultVolumeMultiplier
+                    trackMultiplier: voice.volumeMultiplier
                 )
             )
         }
@@ -1341,28 +1739,28 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
 
     // MARK: - Сохранение / загрузка
 
-    private func saveState() {
+    @discardableResult
+    private func saveState() -> Bool {
         do {
             let musicData = try JSONEncoder().encode(musicPlaylists)
             let effectData = try JSONEncoder().encode(effectPlaylists)
-            let defaults = UserDefaults.standard
             defaults.set(musicData, forKey: PlayerDefaultsKeys.musicPlaylists)
             defaults.set(effectData, forKey: PlayerDefaultsKeys.effectPlaylists)
+            return true
         } catch {
             errorMessage = L10n.tr("error.save_playlists")
+            return false
         }
     }
 
     private func loadState() {
-        let defaults = UserDefaults.standard
-
         if !defaults.bool(forKey: PlayerDefaultsKeys.migrationCompleted),
            let legacyData = defaults.data(forKey: PlayerDefaultsKeys.legacyPlaylists),
            let legacyPlaylists = try? JSONDecoder().decode([Playlist].self, from: legacyData) {
             // Однократная миграция с legacy-структуры на разделённые music/sfx плейлисты.
             migrateLegacyPlaylists(legacyPlaylists)
-            defaults.set(true, forKey: PlayerDefaultsKeys.migrationCompleted)
-            saveState()
+            pendingMigrationCompletion = true
+            needsNormalizedStateSave = true
             return
         }
 
@@ -1372,6 +1770,7 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
             } catch {
                 musicPlaylists = []
                 errorMessage = L10n.tr("error.load_music_playlists")
+                needsNormalizedStateSave = true
             }
         }
 
@@ -1381,12 +1780,12 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
             } catch {
                 effectPlaylists = []
                 errorMessage = L10n.tr("error.load_sfx_playlists")
+                needsNormalizedStateSave = true
             }
         }
     }
 
     private func migrateLegacyPlaylists(_ legacyPlaylists: [Playlist]) {
-        let defaults = UserDefaults.standard
         let legacySelectedID = defaults
             .string(forKey: PlayerDefaultsKeys.legacySelectedPlaylistID)
             .flatMap(UUID.init(uuidString:))
@@ -1432,12 +1831,11 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
         }
 
         if didChange {
-            saveState()
+            needsNormalizedStateSave = true
         }
     }
 
     private func savePreferences() {
-        let defaults = UserDefaults.standard
         defaults.set(volume, forKey: PlayerDefaultsKeys.volume)
         defaults.set(effectsVolume, forKey: PlayerDefaultsKeys.effectsVolume)
         defaults.set(repeatMode.rawValue, forKey: PlayerDefaultsKeys.repeatMode)
@@ -1453,10 +1851,6 @@ final class PlayerViewModel: NSObject, ObservableObject, @preconcurrency AVAudio
     }
 
     private func loadPreferences() {
-        let defaults = UserDefaults.standard
-        isHydratingPreferences = true
-        defer { isHydratingPreferences = false }
-
         if defaults.object(forKey: PlayerDefaultsKeys.volume) != nil {
             volume = defaults.double(forKey: PlayerDefaultsKeys.volume)
         }

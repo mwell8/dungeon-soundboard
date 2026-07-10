@@ -2,6 +2,8 @@
 
 Desktop audio app for tabletop sessions: play background music continuously and trigger SFX on top without interrupting the main track.
 
+Release builds are universal and run natively on both Apple Silicon and Intel Macs.
+
 ## Features
 
 - Separate **Music Playlists** and **SFX Playlists**.
@@ -9,7 +11,8 @@ Desktop audio app for tabletop sessions: play background music continuously and 
 - Compact two-zone UI (Music top, SFX bottom).
 - Runtime UI language switch (**English / Russian**).
 - Persistent playlists and player preferences.
-- Drag-and-drop import from Finder to Music/SFX zones.
+- Single- and multi-track drag-and-drop within and between same-role playlists; hold `Option` to copy.
+- Direct Finder file/folder drops onto a specific Music/SFX playlist.
 - Multi-select track management with `Cmd+Click` and `Delete`.
 - Custom app hotkeys for playback, SFX stop, volume control, tracks, and effects.
 - Per-track and per-effect volume from `0%` to `200%`.
@@ -19,7 +22,7 @@ Desktop audio app for tabletop sessions: play background music continuously and 
 
 ## Requirements
 
-- macOS `26.2+` (as configured in the project).
+- macOS `13.0+`.
 - Xcode `26.3+` (or compatible).
 
 ## Run (Xcode)
@@ -38,10 +41,18 @@ xcodebuild -project "Dungeon Soundboard.xcodeproj" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
 
-## Unit Tests (Core Logic)
+## Unit Tests
 
 ```bash
 swift test --disable-sandbox --scratch-path .build --cache-path .swiftpm-cache
+```
+
+## Full Project Check
+
+Run the same SwiftPM, Xcode, strict-concurrency, localization, and universal Release checks used by CI:
+
+```bash
+scripts/check_project.sh
 ```
 
 ## Release (Unsigned `.app`, no paid Apple Developer)
@@ -54,7 +65,8 @@ xcodebuild -project "Dungeon Soundboard.xcodeproj" \
   -configuration Release \
   -sdk macosx \
   -derivedDataPath ".DerivedData" \
-  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+  ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO build
 
 mkdir -p Release
 cp -R ".DerivedData/Build/Products/Release/Dungeon Soundboard.app" Release/
@@ -65,8 +77,12 @@ Optional zip for GitHub Releases:
 ```bash
 ditto -c -k --sequesterRsrc --keepParent \
   "Release/Dungeon Soundboard.app" \
-  "Release/Dungeon-Soundboard-1.1.0-macOS.zip"
+  "Release/Dungeon-Soundboard-<version>-macOS-universal-unsigned.zip"
 ```
+
+## Download The Latest Release
+
+Open the [latest GitHub release](https://github.com/mwell8/dungeon-soundboard/releases/latest), download its macOS universal zip, unpack it, and move `Dungeon Soundboard.app` to `Applications` if desired.
 
 ## First Launch On User Mac (Unsigned App)
 
@@ -78,7 +94,7 @@ Users should do one of the following:
 
 ## Known Limitations
 
-- Audio files are accessed via macOS security-scoped bookmarks. If access is revoked, re-add files/folders.
+- Audio file locations are stored as persistent macOS bookmarks with a saved-path fallback. Legacy security-scoped bookmarks remain supported.
 - The app is optimized for local file playback (no streaming providers).
 
 ## Free Release and Contributions
@@ -101,6 +117,8 @@ MIT — see [LICENSE](./LICENSE).
 
 **Dungeon Soundboard** — macOS-приложение для ведущих настольных игр. Оно помогает держать фоновую музыку включенной и быстро запускать звуковые эффекты поверх нее, не сбивая текущий музыкальный трек.
 
+Релизная сборка универсальная: она нативно работает на Mac с Apple Silicon и Intel.
+
 Приложение сделано как отдельный пульт звука для мастера: без аккаунтов, браузера, сервера и настройки виртуального стола. Оно подходит для офлайн-сессий по D&D и другим НРИ, когда нужно быстро включать атмосферу, бой, город, таверну, тревогу, окружение или короткие эффекты.
 
 ### Возможности
@@ -108,7 +126,8 @@ MIT — see [LICENSE](./LICENSE).
 - Отдельные плейлисты для **музыки** и **SFX**.
 - Одновременное воспроизведение фоновой музыки и эффектов.
 - Настраиваемое приглушение музыки во время SFX.
-- Drag-and-drop импорт аудиофайлов из Finder.
+- Перенос одиночных и выбранных групп треков/SFX внутри и между плейлистами; `Option` копирует элементы.
+- Прямой импорт файлов и папок Finder в конкретный плейлист.
 - Создание, переименование, удаление и сортировка плейлистов мышкой.
 - Сортировка треков и эффектов внутри плейлиста через отдельную drag-иконку.
 - Переименование треков и эффектов внутри приложения без переименования файла на диске.
@@ -131,8 +150,8 @@ MIT — see [LICENSE](./LICENSE).
 
 ### Скачать и запустить
 
-1. Откройте страницу [Releases](https://github.com/mwell8/dungeon-soundboard/releases).
-2. Скачайте `Dungeon-Soundboard-1.1.0-macOS.zip`.
+1. Откройте [последний релиз](https://github.com/mwell8/dungeon-soundboard/releases/latest).
+2. Скачайте приложенный macOS universal zip последней версии.
 3. Распакуйте архив.
 4. Перетащите `Dungeon Soundboard.app` в `Applications` или запустите из распакованной папки.
 
@@ -150,7 +169,7 @@ MIT — see [LICENSE](./LICENSE).
 
 Требования:
 
-- macOS `26.2+`.
+- macOS `13.0+`.
 - Xcode `26.3+` или совместимая версия.
 
 В Xcode:
@@ -170,10 +189,16 @@ xcodebuild -project "Dungeon Soundboard.xcodeproj" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
 
+Полная проверка проекта тем же набором команд, который используется в CI:
+
+```bash
+scripts/check_project.sh
+```
+
 ### Ограничения
 
 - Приложение работает с локальными аудиофайлами, стриминговые сервисы не поддерживаются.
-- Доступ к файлам хранится через security-scoped bookmarks macOS. Если доступ к файлам был отозван или файлы перемещены, их нужно добавить заново.
+- Пути к файлам хранятся в persistent bookmarks macOS с резервным сохранённым путём; старые security-scoped bookmarks также поддерживаются.
 - Хоткеи работают только когда активно окно приложения. Это не глобальные системные хоткеи macOS.
 
 ### Бесплатный релиз и вклад в проект

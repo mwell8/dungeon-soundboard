@@ -1,12 +1,44 @@
 import Foundation
 
-final class AppTelemetry: @unchecked Sendable {
+protocol TelemetryReporting: Sendable {
+    func info(_ message: String, metadata: [String: String])
+    func warning(_ message: String, metadata: [String: String])
+    func error(_ message: String, metadata: [String: String])
+}
+
+extension TelemetryReporting {
+    func info(_ message: String) {
+        info(message, metadata: [:])
+    }
+
+    func warning(_ message: String) {
+        warning(message, metadata: [:])
+    }
+
+    func error(_ message: String) {
+        error(message, metadata: [:])
+    }
+}
+
+protocol TelemetryTransport: Sendable {
+    nonisolated func send(_ request: URLRequest)
+}
+
+struct URLSessionTelemetryTransport: TelemetryTransport {
+    nonisolated func send(_ request: URLRequest) {
+        URLSession.shared.dataTask(with: request).resume()
+    }
+}
+
+final class AppTelemetry: TelemetryReporting, @unchecked Sendable {
     static let shared = AppTelemetry()
 
     private let queue = DispatchQueue(label: "telemetry.queue", qos: .utility)
     private let logFileURL: URL
+    private let transport: any TelemetryTransport
 
-    private init() {
+    init(transport: any TelemetryTransport = URLSessionTelemetryTransport()) {
+        self.transport = transport
         let fileManager = FileManager.default
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
@@ -83,8 +115,8 @@ final class AppTelemetry: @unchecked Sendable {
             return
         }
 
-        queue.async {
-            URLSession.shared.dataTask(with: request).resume()
+        queue.async { [transport] in
+            transport.send(request)
         }
     }
 

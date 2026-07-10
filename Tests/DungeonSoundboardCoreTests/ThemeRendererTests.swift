@@ -20,6 +20,34 @@ final class ThemeRendererTests: XCTestCase {
         XCTAssertEqual(decoded.chrome.cornerRadius, ThemeRenderer.defaultTheme.chrome.cornerRadius)
     }
 
+    func testThemeDecodePreservesExplicitNullPreset() throws {
+        let json = #"{"preset":null}"#
+
+        let decoded = try JSONDecoder().decode(AppTheme.self, from: Data(json.utf8))
+
+        XCTAssertNil(decoded.preset)
+        XCTAssertEqual(decoded.palette, ThemeRenderer.defaultTheme.palette)
+    }
+
+    func testThemeDecodeDefaultsOnlyMissingPreset() throws {
+        let decoded = try JSONDecoder().decode(AppTheme.self, from: Data("{}".utf8))
+
+        XCTAssertEqual(decoded.preset, ThemeRenderer.defaultTheme.preset)
+    }
+
+    func testExplicitNullPresetSurvivesEncodingRoundTrip() throws {
+        var customTheme = ThemeRenderer.defaultTheme
+        customTheme.preset = nil
+
+        let data = try JSONEncoder().encode(customTheme)
+        let json = try XCTUnwrap(String(data: data, encoding: .utf8))
+        let decoded = try JSONDecoder().decode(AppTheme.self, from: data)
+
+        XCTAssertTrue(json.contains(#""preset":null"#))
+        XCTAssertNil(decoded.preset)
+        XCTAssertEqual(decoded, customTheme)
+    }
+
     func testPresetApplicationProvidesExpectedIdentity() {
         let tavern = ThemeRenderer.theme(for: .tavernEmber)
 

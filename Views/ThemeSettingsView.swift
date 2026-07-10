@@ -350,9 +350,13 @@ struct ThemeSettingsView: View {
                 }
             }
 
-            Text("settings.about.version")
+            Text(L10n.tr("settings.about.version", appVersion))
                 .foregroundStyle(theme.textSecondary)
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
 
     private var colorColumns: [GridItem] {

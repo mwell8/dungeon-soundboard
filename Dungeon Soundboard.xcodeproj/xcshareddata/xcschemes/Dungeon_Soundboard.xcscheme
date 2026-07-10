@@ -21,6 +21,20 @@
                ReferencedContainer = "container:Dungeon Soundboard.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "EB9000032F90000300127E2F"
+               BuildableName = "Dungeon Soundboard Tests.xctest"
+               BlueprintName = "Dungeon Soundboard Tests"
+               ReferencedContainer = "container:Dungeon Soundboard.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -28,7 +42,29 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "YES">
+      shouldAutocreateTestPlan = "NO">
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "EB9000032F90000300127E2F"
+               BuildableName = "Dungeon Soundboard Tests.xctest"
+               BlueprintName = "Dungeon Soundboard Tests"
+               ReferencedContainer = "container:Dungeon Soundboard.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "EB37E7882F5B6C3900127E2F"
+            BuildableName = "Dungeon Soundboard.app"
+            BlueprintName = "Dungeon Soundboard"
+            ReferencedContainer = "container:Dungeon Soundboard.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

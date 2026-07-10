@@ -18,9 +18,14 @@ final class ThemeStore: ObservableObject {
     @Published var errorMessage: String?
 
     private let defaults: UserDefaults
+    private let fileAccessResolver: any FileAccessResolving
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        fileAccessResolver: any FileAccessResolving = PersistentFileAccessResolver()
+    ) {
         self.defaults = defaults
+        self.fileAccessResolver = fileAccessResolver
         customPresets = ThemeStore.loadCustomPresets(defaults: defaults)
         if let stored = ThemeStore.loadStoredTheme(defaults: defaults) {
             let sanitized = ThemeRenderer.sanitize(stored)
@@ -110,23 +115,13 @@ final class ThemeStore: ObservableObject {
     }
 
     func setBackgroundImage(url: URL) {
-        guard let image = NSImage(contentsOf: url) else {
+        let standardizedURL = url.standardizedFileURL
+        guard let image = NSImage(contentsOf: standardizedURL) else {
             errorMessage = L10n.tr("theme.background.error.invalid")
             return
         }
 
-        let didStartAccessing = url.startAccessingSecurityScopedResource()
-        defer {
-            if didStartAccessing {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        guard let bookmarkData = try? url.bookmarkData(
-            options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        ) else {
+        guard let bookmarkData = fileAccessResolver.bookmarkData(for: standardizedURL) else {
             errorMessage = L10n.tr("theme.background.error.bookmark")
             return
         }
@@ -136,7 +131,7 @@ final class ThemeStore: ObservableObject {
         updated.preset = nil
         updated.background.mode = .image
         updated.background.imageBookmarkData = bookmarkData
-        updated.background.imageOriginalPath = url.path
+        updated.background.imageOriginalPath = standardizedURL.path
         updateTheme(updated)
     }
 
@@ -172,39 +167,41 @@ final class ThemeStore: ObservableObject {
     }
 
     private func loadBackgroundImageIfNeeded() {
-        guard theme.background.mode == .image,
-              let bookmarkData = theme.background.imageBookmarkData else {
-            return
-        }
+        guard theme.background.mode == .image else { return }
 
-        var isStale = false
         do {
-            let url = try URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope, .withoutUI],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
+            let fallbackPath = theme.background.imageOriginalPath ?? ""
+            let accessTrack = Track(
+                title: "background",
+                path: fallbackPath,
+                role: .music,
+                bookmarkData: theme.background.imageBookmarkData
             )
-            let didStartAccessing = url.startAccessingSecurityScopedResource()
-            defer {
-                if didStartAccessing {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
+            let lease = try fileAccessResolver.resolve(track: accessTrack)
+            defer { lease.close() }
 
-            guard let image = NSImage(contentsOf: url) else {
+            guard let image = NSImage(contentsOf: lease.url) else {
                 clearBrokenBackground(with: L10n.tr("theme.background.error.load"))
                 return
             }
 
-            if isStale,
-               let refreshed = try? url.bookmarkData(
-                    options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-               ) {
-                var updated = theme
+            var updated = theme
+            var didRefreshReference = false
+            let normalizedPath = lease.url.standardizedFileURL.path
+            if updated.background.imageOriginalPath != normalizedPath {
+                updated.background.imageOriginalPath = normalizedPath
+                didRefreshReference = true
+            }
+            if let refreshed = lease.refreshedBookmarkData,
+               updated.background.imageBookmarkData != refreshed {
                 updated.background.imageBookmarkData = refreshed
+                didRefreshReference = true
+            } else if updated.background.imageBookmarkData == nil,
+                      let bookmark = fileAccessResolver.bookmarkData(for: lease.url) {
+                updated.background.imageBookmarkData = bookmark
+                didRefreshReference = true
+            }
+            if didRefreshReference {
                 theme = ThemeRenderer.sanitize(updated)
             }
 

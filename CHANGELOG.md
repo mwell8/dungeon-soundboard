@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-07-10
+
+### Added
+- Single- and multi-track drag-and-drop between same-role playlists, including Option-copy and direct Finder file/folder drops onto a playlist.
+- Shuffle deck without repeats and playlist-aware playback history.
+- Injectable audio, file-access, scheduler, defaults, and telemetry seams with app-level regression tests.
+- App-level XCTest target wired into the shared Xcode scheme.
+- One-command project verification for SwiftPM, Xcode, strict concurrency, localization, and release packaging.
+- Universal Release validation for Apple Silicon and Intel architectures.
+
+### Changed
+- Music and SFX lifecycles are independent; replacing a player is atomic and failed playback keeps the active player intact.
+- Playback state, playlist migration, custom themes, and physical-key hotkeys now round-trip and reconcile consistently.
+- New file references use persistent bookmarks; legacy security-scoped bookmarks remain readable.
+- The app now owns one player model, one hotkey store, one local monitor, and one main window.
+- Minimum supported system is now macOS 13.0.
+- The app target now builds in Swift 6 language mode.
+- CI uses macOS 15 with an explicitly selected Xcode 26.3 toolchain.
+- Release artifact names and versions are derived from Xcode build settings.
+- GitHub release documentation now points to the latest universal build instead of a hard-coded version.
+
+### Removed
+- App Sandbox entitlement configuration and the obsolete entitlement plist resource for the unsandboxed Developer ID distribution.
+
 ## [1.1.0] - 2026-06-26
 
 ### Added

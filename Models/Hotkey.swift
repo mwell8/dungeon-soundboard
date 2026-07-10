@@ -26,6 +26,15 @@ struct Hotkey: Codable, Hashable, Identifiable {
     var displayText: String {
         "\(modifier.displayPrefix)\(label)"
     }
+
+    static func == (lhs: Hotkey, rhs: Hotkey) -> Bool {
+        lhs.keyCode == rhs.keyCode && lhs.modifier == rhs.modifier
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(keyCode)
+        hasher.combine(modifier)
+    }
 }
 
 extension Hotkey {
@@ -39,7 +48,10 @@ extension Hotkey {
         isCommandPressed: Bool
     ) -> Hotkey? {
         let normalizedKeyCode = normalizedKeyCode(keyCode)
-        guard !isOptionPressed, !isCommandPressed, !(isShiftPressed && isControlPressed) else {
+        guard normalizedKeyCode != 48,
+              !isOptionPressed,
+              !isCommandPressed,
+              !(isShiftPressed && isControlPressed) else {
             return nil
         }
 
@@ -66,8 +78,6 @@ extension Hotkey {
             return "-"
         case 36:
             return "Return"
-        case 48:
-            return "Tab"
         case 49:
             return "Space"
         case 51:
@@ -157,6 +167,15 @@ struct HotkeyConflict: Equatable {
     var hotkey: Hotkey
 }
 
+struct HotkeyReconciliationResult: Equatable {
+    let retargetedCount: Int
+    let removedCount: Int
+
+    var didChange: Bool {
+        retargetedCount > 0 || removedCount > 0
+    }
+}
+
 struct HotkeyConfiguration: Codable, Equatable {
     var bindings: [HotkeyBinding]
 
@@ -217,6 +236,119 @@ struct HotkeyConfiguration: Codable, Equatable {
         _ = assign(Self.deleteHotkey, to: .stopEffects, resolvingConflicts: true)
     }
 
+    /// Retargets the exact playlist/track pair while preserving its physical
+    /// hotkey. This is used after a successful move between playlists.
+    @discardableResult
+    mutating func retargetTrackBinding(
+        role: TrackRole,
+        trackID: UUID,
+        from sourcePlaylistID: UUID,
+        to destinationPlaylistID: UUID
+    ) -> Bool {
+        guard sourcePlaylistID != destinationPlaylistID else { return false }
+
+        let sourceAction = trackAction(
+            role: role,
+            playlistID: sourcePlaylistID,
+            trackID: trackID
+        )
+        let destinationAction = trackAction(
+            role: role,
+            playlistID: destinationPlaylistID,
+            trackID: trackID
+        )
+        guard let sourceBinding = bindings.first(where: { $0.action == sourceAction }) else {
+            return false
+        }
+
+        bindings.removeAll { $0.action == sourceAction || $0.action == destinationAction }
+        bindings.append(HotkeyBinding(action: destinationAction, hotkey: sourceBinding.hotkey))
+        return true
+    }
+
+    /// Applies only successful moves. Copies intentionally keep the original
+    /// binding on the source track because the copied track has a new identity.
+    @discardableResult
+    mutating func applyTransferResult(_ result: TrackTransferResult) -> Int {
+        guard result.operation == .move else { return 0 }
+
+        var retargetedCount = 0
+        for record in result.transferred where record.sourceTrackID == record.destinationTrackID {
+            if retargetTrackBinding(
+                role: result.role,
+                trackID: record.sourceTrackID,
+                from: result.sourcePlaylistID,
+                to: result.destinationPlaylistID
+            ) {
+                retargetedCount += 1
+            }
+        }
+        return retargetedCount
+    }
+
+    /// Repairs playlist IDs after persisted moves and removes only bindings whose
+    /// track no longer has one unambiguous owner. A still-valid exact pair wins
+    /// even if corrupted data contains the same track UUID elsewhere.
+    @discardableResult
+    mutating func reconcileTrackBindings(
+        musicPlaylists: [Playlist],
+        effectPlaylists: [EffectPlaylist]
+    ) -> HotkeyReconciliationResult {
+        let musicOwners = Self.musicOwners(in: musicPlaylists)
+        let effectOwners = Self.effectOwners(in: effectPlaylists)
+        var retargetedCount = 0
+        var removedCount = 0
+        var reconciled: [HotkeyBinding] = []
+
+        for var binding in bindings {
+            switch binding.action {
+            case .playMusicTrack(let playlistID, let trackID):
+                guard let owner = Self.reconciledOwner(
+                    preferredPlaylistID: playlistID,
+                    trackID: trackID,
+                    owners: musicOwners
+                ) else {
+                    removedCount += 1
+                    continue
+                }
+                if owner != playlistID {
+                    binding.action = .playMusicTrack(playlistID: owner, trackID: trackID)
+                    retargetedCount += 1
+                }
+
+            case .playEffect(let playlistID, let trackID):
+                guard let owner = Self.reconciledOwner(
+                    preferredPlaylistID: playlistID,
+                    trackID: trackID,
+                    owners: effectOwners
+                ) else {
+                    removedCount += 1
+                    continue
+                }
+                if owner != playlistID {
+                    binding.action = .playEffect(playlistID: owner, trackID: trackID)
+                    retargetedCount += 1
+                }
+
+            case .stopAll, .stopEffects, .playPause, .musicVolumeUp, .musicVolumeDown,
+                 .effectsVolumeUp, .effectsVolumeDown:
+                break
+            }
+
+            if reconciled.contains(where: { $0.action == binding.action }) {
+                removedCount += 1
+            } else {
+                reconciled.append(binding)
+            }
+        }
+
+        bindings = reconciled
+        return HotkeyReconciliationResult(
+            retargetedCount: retargetedCount,
+            removedCount: removedCount
+        )
+    }
+
     mutating func removeMissingTrackBindings(
         musicPlaylistIDs: Set<UUID>,
         musicTrackIDs: Set<UUID>,
@@ -233,5 +365,47 @@ struct HotkeyConfiguration: Codable, Equatable {
                 return false
             }
         }
+    }
+
+    private func trackAction(role: TrackRole, playlistID: UUID, trackID: UUID) -> HotkeyAction {
+        switch role {
+        case .music:
+            return .playMusicTrack(playlistID: playlistID, trackID: trackID)
+        case .effect:
+            return .playEffect(playlistID: playlistID, trackID: trackID)
+        }
+    }
+
+    private static func musicOwners(in playlists: [Playlist]) -> [UUID: Set<UUID>] {
+        var owners: [UUID: Set<UUID>] = [:]
+        for playlist in playlists {
+            for track in playlist.tracks {
+                owners[track.id, default: []].insert(playlist.id)
+            }
+        }
+        return owners
+    }
+
+    private static func effectOwners(in playlists: [EffectPlaylist]) -> [UUID: Set<UUID>] {
+        var owners: [UUID: Set<UUID>] = [:]
+        for playlist in playlists {
+            for track in playlist.effects {
+                owners[track.id, default: []].insert(playlist.id)
+            }
+        }
+        return owners
+    }
+
+    private static func reconciledOwner(
+        preferredPlaylistID: UUID,
+        trackID: UUID,
+        owners: [UUID: Set<UUID>]
+    ) -> UUID? {
+        guard let trackOwners = owners[trackID] else { return nil }
+        if trackOwners.contains(preferredPlaylistID) {
+            return preferredPlaylistID
+        }
+        guard trackOwners.count == 1 else { return nil }
+        return trackOwners.first
     }
 }
