@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - Universal Release validation for Apple Silicon and Intel architectures.
 
 ### Changed
+- Replaced the application icon with a simplified D20 speaker mark designed to remain recognizable at small sizes.
 - Music and SFX lifecycles are independent; replacing a player is atomic and failed playback keeps the active player intact.
 - Playback state, playlist migration, custom themes, and physical-key hotkeys now round-trip and reconcile consistently.
 - New file references use persistent bookmarks; legacy security-scoped bookmarks remain readable.
