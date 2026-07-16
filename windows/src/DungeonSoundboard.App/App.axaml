@@ -3,7 +3,102 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <FontFamily x:Key="AppFontFamily">Segoe UI</FontFamily>
+    <SolidColorBrush x:Key="OnAccentBrush">#171210</SolidColorBrush>
+    <SolidColorBrush x:Key="ModalScrimBrush">#B2171210</SolidColorBrush>
+    <SolidColorBrush x:Key="FocusRingFallbackBrush">#D9A441</SolidColorBrush>
+    <SolidColorBrush x:Key="DangerSubtleBrush">#20B8473D</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemePanelBrush">#211916</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemePanelAltBrush">#2A201C</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeCardBrush">#332620</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeCurrentCardBrush">#5B514A</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeAccentBrush">#D9A441</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeDividerBrush">#4A3E37</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemePanelTextPrimaryBrush">#F0E7DB</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemePanelTextSecondaryBrush">#A99A8A</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemePanelAltTextPrimaryBrush">#F0E7DB</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemePanelAltTextSecondaryBrush">#A99A8A</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeCardTextPrimaryBrush">#F0E7DB</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeCardTextSecondaryBrush">#A99A8A</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeCurrentCardTextPrimaryBrush">#F0E7DB</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeCurrentCardTextSecondaryBrush">#D2C5B8</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeAccentTextPrimaryBrush">#171210</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeAccentTextSecondaryBrush">#3A2B25</SolidColorBrush>
+    <x:String x:Key="MenuShufflePlayText">Играть случайно</x:String>
+    <x:String x:Key="MenuRenameText">Переименовать</x:String>
+    <x:String x:Key="MenuDeleteText">Удалить</x:String>
+  </Application.Resources>
   <Application.Styles>
     <FluentTheme />
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+    <Style Selector="Window, UserControl">
+      <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
+    </Style>
+    <Style Selector="Border.trackVolumePopup">
+      <Setter Property="Background" Value="{DynamicResource ThemePanelBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeDividerBrush}" />
+    </Style>
+    <Style Selector="Border.trackVolumePopup TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ThemePanelTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Border.trackVolumePopup TextBlock.caption">
+      <Setter Property="Foreground" Value="{DynamicResource ThemePanelTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.trackVolumeReset">
+      <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeCardTextPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeDividerBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.trackVolumeReset:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ThemeCurrentCardBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeCurrentCardTextPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+    <Style Selector="Button.trackVolumeReset:focus">
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}" />
+    </Style>
+    <Style Selector="Button.trackVolumeReset TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ThemeCardTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.trackVolumeReset:pointerover TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ThemeCurrentCardTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ContextMenu">
+      <Setter Property="Background" Value="{DynamicResource ThemePanelBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemePanelTextPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeDividerBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="4" />
+    </Style>
+    <Style Selector="MenuItem">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemePanelTextPrimaryBrush}" />
+      <Setter Property="MinHeight" Value="28" />
+    </Style>
+    <Style Selector="MenuItem:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ThemeCurrentCardBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeCurrentCardTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="MenuItem TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ThemePanelTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="MenuItem:pointerover TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ThemeCurrentCardTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Separator">
+      <Setter Property="Background" Value="{DynamicResource ThemeDividerBrush}" />
+    </Style>
+    <Style Selector="ComboBoxItem">
+      <Setter Property="Background" Value="{DynamicResource ThemePanelBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemePanelTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ComboBoxItem:pointerover, ComboBoxItem:selected">
+      <Setter Property="Background" Value="{DynamicResource ThemeCurrentCardBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeCurrentCardTextPrimaryBrush}" />
+    </Style>
   </Application.Styles>
 </Application>

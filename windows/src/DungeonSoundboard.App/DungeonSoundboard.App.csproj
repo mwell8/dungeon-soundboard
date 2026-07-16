@@ -4,19 +4,32 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <AssemblyName>DungeonSoundboard.Windows</AssemblyName>
     <RootNamespace>DungeonSoundboard.App</RootNamespace>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>Dungeon Soundboard</Product>
+    <Version>1.2.0</Version>
+    <Description>Windows client for Dungeon Soundboard</Description>
+    <Authors>MWell</Authors>
+    <Company>MWell</Company>
+    <Copyright>Copyright (c) MWell</Copyright>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Controls.ColorPicker" />
     <PackageReference Include="Avalonia.Desktop" />
-    <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="NAudio" />
+    <PackageReference Include="SkiaSharp" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DungeonSoundboard.Core\DungeonSoundboard.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 </Project>

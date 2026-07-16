@@ -4,16 +4,16 @@ namespace DungeonSoundboard.Core.Models;
 
 public sealed class ThemePalette : IEquatable<ThemePalette>
 {
-    public ThemeColor BackgroundTop { get; set; } = new(0.10, 0.08, 0.07);
-    public ThemeColor BackgroundBottom { get; set; } = new(0.16, 0.12, 0.10);
-    public ThemeColor SurfacePrimary { get; set; } = new(0.18, 0.14, 0.12);
-    public ThemeColor SurfaceSecondary { get; set; } = new(0.22, 0.17, 0.14);
-    public ThemeColor Card { get; set; } = new(0.24, 0.19, 0.16);
-    public ThemeColor CardCurrent { get; set; } = new(0.32, 0.24, 0.17);
-    public ThemeColor Accent { get; set; } = new(0.82, 0.67, 0.32);
-    public ThemeColor Danger { get; set; } = new(0.72, 0.28, 0.24);
-    public ThemeColor TextPrimary { get; set; } = new(0.95, 0.91, 0.84);
-    public ThemeColor TextSecondary { get; set; } = new(0.74, 0.69, 0.62);
+    public ThemeColor BackgroundTop { get; set; } = new(0.102, 0.078, 0.071);
+    public ThemeColor BackgroundBottom { get; set; } = new(0.161, 0.122, 0.102);
+    public ThemeColor SurfacePrimary { get; set; } = new(0.180, 0.141, 0.122);
+    public ThemeColor SurfaceSecondary { get; set; } = new(0.220, 0.169, 0.141);
+    public ThemeColor Card { get; set; } = new(0.239, 0.188, 0.161);
+    public ThemeColor CardCurrent { get; set; } = new(0.322, 0.239, 0.169);
+    public ThemeColor Accent { get; set; } = new(0.820, 0.671, 0.322);
+    public ThemeColor Danger { get; set; } = new(0.722, 0.278, 0.239);
+    public ThemeColor TextPrimary { get; set; } = new(0.949, 0.910, 0.839);
+    public ThemeColor TextSecondary { get; set; } = new(0.741, 0.690, 0.620);
 
     public bool Equals(ThemePalette? other)
     {

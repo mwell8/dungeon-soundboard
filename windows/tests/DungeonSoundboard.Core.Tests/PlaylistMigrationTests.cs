@@ -59,4 +59,27 @@ public sealed class PlaylistMigrationTests
         Assert.Equal("SFX Master", result.EffectPlaylists[0].Name);
         Assert.Equal(result.MusicPlaylists[0].Id, result.SelectedMusicPlaylistId);
     }
+
+    [Fact]
+    public void MigrationDeduplicatesEffectPathsUsingWindowsPathNormalization()
+    {
+        var legacy = new List<Playlist>
+        {
+            new(
+                "Scene 1",
+                [
+                    new Track("Thunder", "C:\\Audio\\Thunder.wav", TrackRole.Effect),
+                    new Track("Thunder Copy", "c:/audio/thunder.wav", TrackRole.Effect)
+                ])
+        };
+
+        var result = PlaylistMigration.MigrateLegacyPlaylists(
+            legacy,
+            null,
+            "Main Playlist",
+            "SFX Master");
+
+        Assert.Single(result.EffectPlaylists[0].Effects);
+        Assert.Equal("Thunder", result.EffectPlaylists[0].Effects[0].Title);
+    }
 }

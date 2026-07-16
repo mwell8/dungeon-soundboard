@@ -11,7 +11,14 @@ public sealed record ImportConflictSummary(
 
 public sealed record FileImportResult(
     IReadOnlyList<Track> AddedTracks,
-    ImportConflictSummary? ConflictSummary);
+    ImportConflictSummary? ConflictSummary,
+    ImportScanSummary ScanSummary);
+
+public sealed record ImportScanSummary(
+    int InputPathCount,
+    int SupportedFileCount,
+    int UnsupportedFileCount,
+    int SkippedPathCount);
 
 public interface IFileImportService
 {
@@ -24,6 +31,24 @@ public interface IFileImportService
         TrackRole role,
         IEnumerable<Track> existingTracks,
         string targetName);
+
+    Task<FileImportResult> BuildUniqueTracksAsync(
+        IEnumerable<string> paths,
+        TrackRole role,
+        IEnumerable<Track> existingTracks,
+        string targetName,
+        CancellationToken cancellationToken = default)
+    {
+        var inputPaths = paths.ToArray();
+        var existing = existingTracks.ToArray();
+        return Task.Run(
+            () =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return BuildUniqueTracks(inputPaths, role, existing, targetName);
+            },
+            cancellationToken);
+    }
 }
 
 public sealed class FileImportService : IFileImportService
@@ -45,31 +70,7 @@ public sealed class FileImportService : IFileImportService
 
     public IReadOnlyList<string> ExpandSupportedFiles(IEnumerable<string> paths)
     {
-        var result = new List<string>();
-        foreach (var path in paths)
-        {
-            if (File.Exists(path))
-            {
-                if (IsSupportedFile(path))
-                {
-                    result.Add(Path.GetFullPath(path));
-                }
-
-                continue;
-            }
-
-            if (!Directory.Exists(path))
-            {
-                continue;
-            }
-
-            result.AddRange(Directory.EnumerateFiles(path, "*.*", SearchOption.AllDirectories)
-                .Where(IsSupportedFile)
-                .OrderBy(file => file, StringComparer.CurrentCultureIgnoreCase)
-                .Select(Path.GetFullPath));
-        }
-
-        return result;
+        return Scan(paths).SupportedFiles;
     }
 
     public FileImportResult BuildUniqueTracks(
@@ -78,7 +79,8 @@ public sealed class FileImportService : IFileImportService
         IEnumerable<Track> existingTracks,
         string targetName)
     {
-        var expanded = ExpandSupportedFiles(paths);
+        var scan = Scan(paths);
+        var expanded = scan.SupportedFiles;
         var existingKeys = existingTracks.Select(TrackIdentityKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var addedTracks = new List<Track>();
         var duplicates = new List<Track>();
@@ -108,17 +110,140 @@ public sealed class FileImportService : IFileImportService
                 duplicates.Count,
                 duplicates.Take(8).Select(track => track.Title).ToList());
 
-        return new FileImportResult(addedTracks, summary);
+        return new FileImportResult(addedTracks, summary, scan.Summary);
     }
 
     public static string TrackIdentityKey(Track track)
     {
-        return Path.GetFullPath(track.Path).Trim().ToLowerInvariant();
+        return NormalizedPathKey(track.Path);
     }
 
     private bool IsSupportedFile(string path)
     {
         var extension = Path.GetExtension(path).TrimStart('.');
         return !string.IsNullOrWhiteSpace(extension) && SupportedExtensions.Contains(extension);
+    }
+
+    private ImportScan Scan(IEnumerable<string> paths)
+    {
+        var supported = new List<string>();
+        var inputPathCount = 0;
+        var unsupportedCount = 0;
+        var skippedCount = 0;
+
+        foreach (var path in paths)
+        {
+            inputPathCount++;
+            if (!TryGetFullPath(path, out var fullPath))
+            {
+                skippedCount++;
+                continue;
+            }
+
+            if (File.Exists(fullPath))
+            {
+                if (IsSupportedFile(fullPath))
+                {
+                    supported.Add(fullPath);
+                }
+                else
+                {
+                    unsupportedCount++;
+                }
+
+                continue;
+            }
+
+            if (Directory.Exists(fullPath))
+            {
+                var directoryScan = ScanDirectory(fullPath);
+                supported.AddRange(directoryScan.SupportedFiles);
+                unsupportedCount += directoryScan.UnsupportedFileCount;
+                skippedCount += directoryScan.SkippedPathCount;
+                continue;
+            }
+
+            skippedCount++;
+        }
+
+        return new ImportScan(
+            supported,
+            new ImportScanSummary(inputPathCount, supported.Count, unsupportedCount, skippedCount));
+    }
+
+    private ImportScan ScanDirectory(string directory)
+    {
+        try
+        {
+            var supported = new List<string>();
+            var unsupportedCount = 0;
+            foreach (var file in Directory.EnumerateFiles(
+                         directory,
+                         "*.*",
+                         new EnumerationOptions
+                         {
+                             RecurseSubdirectories = true,
+                             IgnoreInaccessible = true
+                         }))
+            {
+                var normalized = TryGetFullPath(file, out var fullPath) ? fullPath : file;
+                if (IsSupportedFile(normalized))
+                {
+                    supported.Add(normalized);
+                }
+                else
+                {
+                    unsupportedCount++;
+                }
+            }
+
+            supported.Sort(StringComparer.CurrentCultureIgnoreCase);
+            return new ImportScan(supported, new ImportScanSummary(1, supported.Count, unsupportedCount, 0));
+        }
+        catch (Exception ex) when (IsPathAccessException(ex))
+        {
+            return new ImportScan([], new ImportScanSummary(1, 0, 0, 1));
+        }
+    }
+
+    private static string NormalizedPathKey(string path)
+    {
+        var normalized = TryGetFullPath(path, out var fullPath) ? fullPath : path;
+        return normalized.Trim().ToLowerInvariant();
+    }
+
+    private static bool TryGetFullPath(string path, out string fullPath)
+    {
+        fullPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            fullPath = Path.GetFullPath(path);
+            return true;
+        }
+        catch (Exception ex) when (IsPathAccessException(ex))
+        {
+            return false;
+        }
+    }
+
+    private static bool IsPathAccessException(Exception ex)
+    {
+        return ex is ArgumentException
+            or IOException
+            or NotSupportedException
+            or PathTooLongException
+            or UnauthorizedAccessException;
+    }
+
+    private sealed record ImportScan(IReadOnlyList<string> SupportedFiles, ImportScanSummary Summary)
+    {
+        public int UnsupportedFileCount => Summary.UnsupportedFileCount;
+
+        public int SkippedPathCount => Summary.SkippedPathCount;
     }
 }

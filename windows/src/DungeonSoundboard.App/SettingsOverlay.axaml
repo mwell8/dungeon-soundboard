@@ -1,0 +1,114 @@
+<UserControl
+    x:Class="DungeonSoundboard.App.SettingsOverlay"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:DungeonSoundboard.App.Controls">
+  <UserControl.Styles>
+    <Style Selector="TextBlock"><Setter Property="Foreground" Value="{DynamicResource ThemePanelTextPrimaryBrush}" /><Setter Property="FontSize" Value="13" /></Style>
+    <Style Selector="TextBlock.caption"><Setter Property="Foreground" Value="{DynamicResource ThemePanelTextSecondaryBrush}" /><Setter Property="FontSize" Value="11" /></Style>
+    <Style Selector="TextBlock.sectionTitle"><Setter Property="FontSize" Value="15" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="Border.section"><Setter Property="Background" Value="{DynamicResource ThemePanelAltBrush}" /><Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="14" /></Style>
+    <Style Selector="Border.section TextBlock"><Setter Property="Foreground" Value="{DynamicResource ThemePanelAltTextPrimaryBrush}" /></Style>
+    <Style Selector="Border.section TextBlock.caption"><Setter Property="Foreground" Value="{DynamicResource ThemePanelAltTextSecondaryBrush}" /></Style>
+    <Style Selector="Button"><Setter Property="MinHeight" Value="28" /><Setter Property="Padding" Value="10,4" /><Setter Property="Background" Value="{DynamicResource ThemeCardBrush}" /><Setter Property="Foreground" Value="{DynamicResource ThemeCardTextPrimaryBrush}" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="CornerRadius" Value="6" /></Style>
+    <Style Selector="Button TextBlock"><Setter Property="Foreground" Value="{DynamicResource ThemeCardTextPrimaryBrush}" /></Style>
+    <Style Selector="Button PathIcon"><Setter Property="Foreground" Value="{DynamicResource ThemeCardTextPrimaryBrush}" /></Style>
+    <Style Selector="Button:pointerover"><Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentBrush}" /></Style>
+    <Style Selector="Button.icon"><Setter Property="Width" Value="30" /><Setter Property="MinWidth" Value="30" /><Setter Property="Padding" Value="0" /></Style>
+    <Style Selector="Button.icon PathIcon"><Setter Property="Width" Value="14" /><Setter Property="Height" Value="14" /></Style>
+    <Style Selector="Button.authorLink"><Setter Property="MinHeight" Value="20" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" /></Style>
+    <Style Selector="Button.authorLink TextBlock"><Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" /></Style>
+    <Style Selector="TabItem"><Setter Property="Padding" Value="12,7" /><Setter Property="Foreground" Value="{DynamicResource ThemePanelTextSecondaryBrush}" /></Style>
+    <Style Selector="TabItem:selected"><Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" /><Setter Property="Background" Value="{DynamicResource ThemePanelAltBrush}" /></Style>
+    <Style Selector="ComboBox"><Setter Property="MinHeight" Value="28" /><Setter Property="Background" Value="{DynamicResource ThemeCardBrush}" /><Setter Property="Foreground" Value="{DynamicResource ThemeCardTextPrimaryBrush}" /></Style>
+  </UserControl.Styles>
+
+  <Border Background="{DynamicResource ModalScrimBrush}">
+    <Border Width="900" Height="640" Margin="28" Padding="18" CornerRadius="10" BorderThickness="1"
+            BorderBrush="{DynamicResource ThemeAccentBrush}" Background="{DynamicResource ThemePanelBrush}"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+      <Grid RowDefinitions="42,*">
+        <Grid ColumnDefinitions="*,Auto" Margin="2,0,2,10">
+          <StackPanel Spacing="1" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Ui.Settings}" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Classes="caption" Text="Dungeon Soundboard" />
+          </StackPanel>
+          <Button Grid.Column="1" Classes="icon" Command="{Binding CloseSettingsCommand}"
+                  ToolTip.Tip="{Binding Ui.CloseSettings}" AutomationProperties.Name="{Binding Ui.CloseSettings}">
+            <PathIcon Data="M18.7,6.7L17.3,5.3L12,10.6L6.7,5.3L5.3,6.7L10.6,12L5.3,17.3L6.7,18.7L12,13.4L17.3,18.7L18.7,17.3L13.4,12L18.7,6.7Z" />
+          </Button>
+        </Grid>
+
+        <TabControl Grid.Row="1" SelectedIndex="{Binding SelectedSettingsTabIndex}">
+          <TabItem Header="{Binding Ui.Audio}">
+            <ScrollViewer><StackPanel Margin="4,14,4,4" Spacing="12">
+              <Border Classes="section"><Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="150,*,54" RowSpacing="10">
+                <TextBlock Classes="sectionTitle" Grid.ColumnSpan="3" Text="{Binding Ui.Mixer}" />
+                <TextBlock Grid.Row="1" Text="{Binding Ui.Music}" VerticalAlignment="Center" /><controls:JumpSlider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding MusicVolume}" /><TextBlock Grid.Row="1" Grid.Column="2" Classes="caption" Text="{Binding MusicVolume, StringFormat={}{0:P0}}" TextAlignment="Right" />
+                <TextBlock Grid.Row="2" Text="{Binding Ui.Sfx}" VerticalAlignment="Center" /><controls:JumpSlider Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding EffectsVolume}" /><TextBlock Grid.Row="2" Grid.Column="2" Classes="caption" Text="{Binding EffectsVolume, StringFormat={}{0:P0}}" TextAlignment="Right" />
+                <TextBlock Grid.Row="3" Text="{Binding Ui.Ducking}" VerticalAlignment="Center" /><controls:JumpSlider Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding DuckingAmount}" /><TextBlock Grid.Row="3" Grid.Column="2" Classes="caption" Text="{Binding DuckingAmount, StringFormat={}{0:P0}}" TextAlignment="Right" />
+              </Grid></Border>
+              <Border Classes="section"><Grid ColumnDefinitions="*,Auto"><StackPanel><TextBlock Classes="sectionTitle" Text="{Binding Ui.Playback}" /><TextBlock Classes="caption" Text="{Binding Ui.FadeOnPause}" /></StackPanel><ToggleSwitch Grid.Column="1" IsChecked="{Binding MusicFadeOutOnPauseEnabled}" /></Grid></Border>
+              <TextBlock Classes="caption" Text="{Binding Ui.CodecNote}" TextWrapping="Wrap" />
+            </StackPanel></ScrollViewer>
+          </TabItem>
+
+          <TabItem Header="{Binding Ui.Interface}">
+            <ScrollViewer><StackPanel Margin="4,14,4,4" Spacing="12">
+              <Border Classes="section"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="180,*" RowSpacing="10">
+                <TextBlock Grid.ColumnSpan="2" Classes="sectionTitle" Text="{Binding Ui.Interface}" />
+                <TextBlock Grid.Row="1" Text="{Binding Ui.Preset}" VerticalAlignment="Center" /><ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ThemePresetOptions}" SelectedItem="{Binding SelectedThemePreset}" DisplayMemberBinding="{Binding Name}" />
+                <TextBlock Grid.Row="2" Text="{Binding Ui.Density}" VerticalAlignment="Center" /><ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding InterfaceDensityOptions}" SelectedItem="{Binding SelectedInterfaceDensityOption}" DisplayMemberBinding="{Binding Name}" />
+                <TextBlock Grid.Row="3" Text="{Binding Ui.DeckLayout}" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="12"><TextBlock Classes="caption" Text="{Binding Ui.MusicColumns}" VerticalAlignment="Center" /><ComboBox Width="64" ItemsSource="{Binding ColumnCountOptions}" SelectedItem="{Binding MusicColumns}" /><TextBlock Classes="caption" Text="{Binding Ui.SfxColumns}" VerticalAlignment="Center" /><ComboBox Width="64" ItemsSource="{Binding ColumnCountOptions}" SelectedItem="{Binding EffectsColumns}" /></StackPanel>
+                <TextBlock Grid.Row="4" Text="{Binding Ui.Panels}" VerticalAlignment="Center" /><controls:JumpSlider Grid.Row="4" Grid.Column="1" Minimum="0.55" Maximum="0.98" Value="{Binding PanelOpacity}" />
+                <TextBlock Grid.Row="5" Text="{Binding Ui.Corners}" VerticalAlignment="Center" /><controls:JumpSlider Grid.Row="5" Grid.Column="1" Minimum="8" Maximum="24" Value="{Binding ChromeCornerRadius}" />
+                <TextBlock Grid.Row="6" Text="{Binding Ui.Accent}" VerticalAlignment="Center" /><controls:JumpSlider Grid.Row="6" Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding AccentIntensity}" />
+              </Grid></Border>
+              <Border Classes="section"><StackPanel Spacing="10">
+                <TextBlock Classes="sectionTitle" Text="{Binding Ui.Background}" />
+                <StackPanel Orientation="Horizontal" Spacing="8"><Button Command="{Binding ChooseBackgroundImageCommand}" Content="{Binding Ui.ChooseImage}" /><Button Command="{Binding ClearBackgroundImageCommand}" Content="{Binding Ui.Clear}" /><TextBlock Classes="caption" Text="{Binding BackgroundImagePath}" TextTrimming="CharacterEllipsis" MaxWidth="480" VerticalAlignment="Center" /></StackPanel>
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="180,*" RowSpacing="8"><TextBlock Text="{Binding Ui.Opacity}" /><controls:JumpSlider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding BackgroundOpacity}" IsEnabled="{Binding HasBackgroundImage}" /><TextBlock Grid.Row="1" Text="{Binding Ui.Dim}" /><controls:JumpSlider Grid.Row="1" Grid.Column="1" Minimum="0.15" Maximum="0.65" Value="{Binding BackgroundDimOverlay}" IsEnabled="{Binding HasBackgroundImage}" /></Grid>
+              </StackPanel></Border>
+              <Border Classes="section"><StackPanel Spacing="8"><TextBlock Classes="sectionTitle" Text="{Binding Ui.Palette}" />
+                <ItemsControl ItemsSource="{Binding ThemePaletteColorOptions}"><ItemsControl.ItemTemplate><DataTemplate>
+                  <Grid ColumnDefinitions="180,Auto,*" Margin="0,3" ColumnSpacing="10"><TextBlock Text="{Binding Name}" VerticalAlignment="Center" /><ColorPicker Grid.Column="1" Color="{Binding Color}" IsAlphaEnabled="True" AutomationProperties.Name="{Binding Name}" /><TextBlock Grid.Column="2" Classes="caption" Text="{Binding HexText}" VerticalAlignment="Center" /></Grid>
+                </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <StackPanel Orientation="Horizontal" Spacing="8"><Button Command="{Binding ResetThemeCommand}" Content="{Binding Ui.ResetTheme}" /><Button Command="{Binding RestoreVisualDefaultsCommand}" Content="{Binding Ui.RestoreDefaults}" /></StackPanel>
+              </StackPanel></Border>
+              <Border Classes="section"><StackPanel Spacing="8"><TextBlock Classes="sectionTitle" Text="{Binding Ui.CustomThemes}" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding CustomThemePresetName}" PlaceholderText="{Binding Ui.CustomThemeName}" /><Button Grid.Column="1" Command="{Binding SaveCurrentThemeAsCustomPresetCommand}" Content="{Binding Ui.Save}" /></Grid>
+                <ItemsControl ItemsSource="{Binding CustomThemePresetOptions}"><ItemsControl.ItemTemplate><DataTemplate><Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2" ColumnSpacing="6"><TextBlock Text="{Binding Name}" VerticalAlignment="Center" /><Button Grid.Column="1" Command="{Binding DataContext.ApplyCustomThemePresetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Content="{Binding DataContext.Ui.ApplyCustomTheme, RelativeSource={RelativeSource AncestorType=UserControl}}" /><Button Grid.Column="2" Command="{Binding DataContext.DeleteCustomThemePresetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Content="{Binding DataContext.Ui.Delete, RelativeSource={RelativeSource AncestorType=UserControl}}" /></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+              </StackPanel></Border>
+            </StackPanel></ScrollViewer>
+          </TabItem>
+
+          <TabItem Header="{Binding Ui.Hotkeys}">
+            <ScrollViewer><StackPanel Margin="4,14,4,4" Spacing="12">
+              <Border Classes="section"><StackPanel Spacing="8"><Grid ColumnDefinitions="*,Auto"><TextBlock Classes="sectionTitle" Text="{Binding Ui.SystemHotkeys}" /><Button Grid.Column="1" Command="{Binding RestoreDefaultHotkeysCommand}" Content="{Binding Ui.RestoreDefaultHotkeys}" /></Grid>
+                <ItemsControl ItemsSource="{Binding SystemHotkeyRows}"><ItemsControl.ItemTemplate><DataTemplate>
+                  <Grid ColumnDefinitions="*,120,Auto,Auto,Auto" Margin="0,3" ColumnSpacing="6"><TextBlock Text="{Binding Name}" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Classes="caption" FontFamily="Consolas" Text="{Binding HotkeyText}" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Classes="icon" Command="{Binding DataContext.BindSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Action}" ToolTip.Tip="{Binding DataContext.Ui.AssignHotkey, RelativeSource={RelativeSource AncestorType=UserControl}}" AutomationProperties.Name="{Binding DataContext.Ui.AssignHotkey, RelativeSource={RelativeSource AncestorType=UserControl}}"><PathIcon Data="M7,14A4,4 0,1 1 10.7,8H21V11H19V13H16V15H13.7A4,4 0,0 1 7,14Z" /></Button>
+                    <Button Grid.Column="3" Classes="icon" Command="{Binding DataContext.RestoreDefaultSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Action}" ToolTip.Tip="{Binding DataContext.Ui.RestoreThisHotkeyDefault, RelativeSource={RelativeSource AncestorType=UserControl}}" AutomationProperties.Name="{Binding DataContext.Ui.RestoreThisHotkeyDefault, RelativeSource={RelativeSource AncestorType=UserControl}}"><PathIcon Data="M12,5V2L8,6L12,10V7C15.3,7 18,9.7 18,13C18,16.3 15.3,19 12,19C8.7,19 6,16.3 6,13H4C4,17.4 7.6,21 12,21C16.4,21 20,17.4 20,13C20,8.6 16.4,5 12,5Z" /></Button>
+                    <Button Grid.Column="4" Classes="icon" Command="{Binding DataContext.ClearSystemHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Action}" ToolTip.Tip="{Binding DataContext.Ui.ClearHotkey, RelativeSource={RelativeSource AncestorType=UserControl}}" AutomationProperties.Name="{Binding DataContext.Ui.ClearHotkey, RelativeSource={RelativeSource AncestorType=UserControl}}"><PathIcon Data="M6,19V7H18V19C18,20.1 17.1,21 16,21H8C6.9,21 6,20.1 6,19M8,9V19H16V9H8M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z" /></Button>
+                  </Grid>
+                </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+              </StackPanel></Border>
+              <Border Classes="section"><StackPanel Spacing="6"><TextBlock Classes="sectionTitle" Text="{Binding Ui.AssignedTrackHotkeys}" /><TextBlock Classes="caption" Text="{Binding AssignedTrackHotkeySummary}" /><ItemsControl ItemsSource="{Binding AssignedTrackHotkeyRows}"><ItemsControl.ItemTemplate><DataTemplate><Grid ColumnDefinitions="*,120" Margin="0,2"><TextBlock Text="{Binding Name}" /><TextBlock Grid.Column="1" Classes="caption" FontFamily="Consolas" Text="{Binding HotkeyText}" /></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+            </StackPanel></ScrollViewer>
+          </TabItem>
+
+          <TabItem Header="{Binding Ui.System}">
+            <ScrollViewer><StackPanel Margin="4,14,4,4" Spacing="12">
+              <Border Classes="section"><Grid ColumnDefinitions="180,*"><TextBlock Text="{Binding Ui.Language}" VerticalAlignment="Center" /><ComboBox Grid.Column="1" ItemsSource="{Binding LanguageOptions}" SelectedItem="{Binding SelectedLanguage}" DisplayMemberBinding="{Binding Name}" /></Grid></Border>
+              <Border Classes="section"><StackPanel Spacing="8"><TextBlock Classes="sectionTitle" Text="{Binding Ui.Storage}" /><TextBlock Classes="caption" Text="{Binding Ui.StorageDescription}" TextWrapping="Wrap" /><TextBlock Classes="caption" Text="{Binding DataDirectory}" TextWrapping="Wrap" /><StackPanel Orientation="Horizontal" Spacing="8"><Button Command="{Binding OpenDataDirectoryCommand}" Content="{Binding Ui.OpenFolder}" /><Button Command="{Binding OpenErrorLogDirectoryCommand}" Content="{Binding Ui.OpenErrorLogFolder}" /></StackPanel></StackPanel></Border>
+              <Border Classes="section"><StackPanel Spacing="8"><TextBlock Classes="sectionTitle" Text="{Binding Ui.ProfileBackup}" /><TextBlock Classes="caption" Text="{Binding Ui.ProfileDescription}" TextWrapping="Wrap" /><StackPanel Orientation="Horizontal" Spacing="8"><Button Command="{Binding ExportProfileCommand}" Content="{Binding Ui.ExportProfile}" /><Button Command="{Binding RestoreProfileCommand}" Content="{Binding Ui.RestoreProfile}" /></StackPanel></StackPanel></Border>
+              <Border Classes="section"><StackPanel Spacing="8"><TextBlock Classes="sectionTitle" Text="{Binding Ui.AudioImport}" /><StackPanel Orientation="Horizontal" Spacing="8"><Button Command="{Binding RemoveMissingMusicFilesCommand}" Content="{Binding Ui.RemoveMissingMusicFiles}" /><Button Command="{Binding RemoveMissingEffectFilesCommand}" Content="{Binding Ui.RemoveMissingSfxFiles}" /></StackPanel></StackPanel></Border>
+              <Border Classes="section"><Grid ColumnDefinitions="*,Auto"><StackPanel Spacing="2"><TextBlock Classes="sectionTitle" Text="{Binding Ui.About}" /><TextBlock Text="Dungeon Soundboard" /><StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Classes="caption" Text="{Binding Ui.AuthorLabel}" VerticalAlignment="Center" /><Button Classes="authorLink" Command="{Binding OpenAuthorPageCommand}" ToolTip.Tip="{Binding Ui.OpenAuthorPage}" AutomationProperties.Name="{Binding Ui.OpenAuthorPage}"><TextBlock Text="{Binding AppAuthorName}" TextDecorations="Underline" /></Button></StackPanel></StackPanel><TextBlock Grid.Column="1" Classes="caption" Text="{Binding AppVersionText}" VerticalAlignment="Center" /></Grid></Border>
+            </StackPanel></ScrollViewer>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </Border>
+  </Border>
+</UserControl>

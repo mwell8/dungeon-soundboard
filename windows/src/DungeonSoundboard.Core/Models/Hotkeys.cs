@@ -38,7 +38,10 @@ public sealed record Hotkey(ushort KeyCode, string Label, HotkeyModifier Modifie
         bool isCommandPressed)
     {
         var normalizedKeyCode = NormalizeKeyCode(keyCode);
-        if (isOptionPressed || isCommandPressed || (isShiftPressed && isControlPressed))
+        if (isOptionPressed
+            || isCommandPressed
+            || (isShiftPressed && isControlPressed)
+            || normalizedKeyCode == HotkeyConfiguration.TabKeyCode)
         {
             return null;
         }
@@ -228,6 +231,53 @@ public sealed class HotkeyConfiguration : IEquatable<HotkeyConfiguration>
         Bindings.RemoveAll(binding => binding.Action.Equals(action));
     }
 
+    public void MoveTrackBindings(
+        TrackRole role,
+        Guid sourcePlaylistId,
+        Guid destinationPlaylistId,
+        IReadOnlySet<Guid> trackIds)
+    {
+        if (sourcePlaylistId == destinationPlaylistId || trackIds.Count == 0)
+        {
+            return;
+        }
+
+        for (var index = 0; index < Bindings.Count; index++)
+        {
+            var binding = Bindings[index];
+            var expectedKind = role == TrackRole.Music
+                ? HotkeyActionKind.PlayMusicTrack
+                : HotkeyActionKind.PlayEffect;
+            if (binding.Action.Kind != expectedKind
+                || binding.Action.PlaylistId != sourcePlaylistId
+                || binding.Action.TrackId is not { } trackId
+                || !trackIds.Contains(trackId))
+            {
+                continue;
+            }
+
+            var movedAction = role == TrackRole.Music
+                ? HotkeyAction.PlayMusicTrack(destinationPlaylistId, trackId)
+                : HotkeyAction.PlayEffect(destinationPlaylistId, trackId);
+            Bindings[index] = new HotkeyBinding(movedAction, binding.Hotkey);
+        }
+    }
+
+    public void RestoreDefault(HotkeyAction action)
+    {
+        if (!action.IsSystemAction)
+        {
+            return;
+        }
+
+        var defaultHotkey = Defaults.HotkeyFor(action);
+        Clear(action);
+        if (defaultHotkey is not null)
+        {
+            _ = Assign(defaultHotkey, action, resolvingConflicts: true);
+        }
+    }
+
     public void MigrateLegacyDeleteStopAllDefault()
     {
         if (HotkeyFor(HotkeyAction.StopAll) != DeleteHotkey || HotkeyFor(HotkeyAction.StopEffects) is not null)
@@ -255,6 +305,29 @@ public sealed class HotkeyConfiguration : IEquatable<HotkeyConfiguration>
                     || !effectTrackIds.Contains(binding.Action.TrackId!.Value),
                 _ => false
             };
+        });
+    }
+
+    public void RemoveMissingTrackBindings(
+        IEnumerable<Playlist> musicPlaylists,
+        IEnumerable<EffectPlaylist> effectPlaylists)
+    {
+        var musicPairs = musicPlaylists
+            .SelectMany(playlist => playlist.Tracks.Select(track => (playlist.Id, track.Id)))
+            .ToHashSet();
+        var effectPairs = effectPlaylists
+            .SelectMany(playlist => playlist.Effects.Select(track => (playlist.Id, track.Id)))
+            .ToHashSet();
+
+        Bindings.RemoveAll(binding => binding.Action.Kind switch
+        {
+            HotkeyActionKind.PlayMusicTrack => binding.Action.PlaylistId is not { } playlistId
+                || binding.Action.TrackId is not { } trackId
+                || !musicPairs.Contains((playlistId, trackId)),
+            HotkeyActionKind.PlayEffect => binding.Action.PlaylistId is not { } playlistId
+                || binding.Action.TrackId is not { } trackId
+                || !effectPairs.Contains((playlistId, trackId)),
+            _ => false
         });
     }
 

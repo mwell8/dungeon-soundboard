@@ -8,6 +8,19 @@ namespace DungeonSoundboard.Core.Tests;
 public sealed class HotkeyTests
 {
     [Fact]
+    public void HotkeyNormalizationRejectsTab()
+    {
+        Assert.Null(Hotkey.Normalized(
+            HotkeyConfiguration.TabKeyCode,
+            "\t",
+            "\t",
+            isShiftPressed: false,
+            isControlPressed: false,
+            isOptionPressed: false,
+            isCommandPressed: false));
+    }
+
+    [Fact]
     public void DefaultHotkeysContainExpectedSystemActions()
     {
         var configuration = HotkeyConfiguration.Defaults;
@@ -17,6 +30,52 @@ public sealed class HotkeyTests
         Assert.Equal("Space", configuration.HotkeyFor(HotkeyAction.PlayPause)?.DisplayText);
         Assert.Equal("Shift++", configuration.HotkeyFor(HotkeyAction.EffectsVolumeUp)?.DisplayText);
         Assert.Equal("Shift+-", configuration.HotkeyFor(HotkeyAction.EffectsVolumeDown)?.DisplayText);
+    }
+
+    [Fact]
+    public void RestoreDefaultRestoresOnlyTheRequestedSystemBinding()
+    {
+        var customPlayPause = new Hotkey(0, "A", HotkeyModifier.None);
+        var customStopEffects = new Hotkey(1, "B", HotkeyModifier.None);
+        var configuration = new HotkeyConfiguration(
+        [
+            new HotkeyBinding(HotkeyAction.PlayPause, customPlayPause),
+            new HotkeyBinding(HotkeyAction.StopEffects, customStopEffects)
+        ]);
+
+        configuration.RestoreDefault(HotkeyAction.PlayPause);
+
+        Assert.Equal("Space", configuration.HotkeyFor(HotkeyAction.PlayPause)?.DisplayText);
+        Assert.Equal(customStopEffects, configuration.HotkeyFor(HotkeyAction.StopEffects));
+    }
+
+    [Fact]
+    public void RestoreDefaultSystemBindingRemovesAConflictingTrackBinding()
+    {
+        var playlistId = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+        var configuration = new HotkeyConfiguration(
+        [
+            new HotkeyBinding(HotkeyAction.PlayMusicTrack(playlistId, trackId), new Hotkey(HotkeyConfiguration.SpaceKeyCode, "Space", HotkeyModifier.None))
+        ]);
+
+        configuration.RestoreDefault(HotkeyAction.PlayPause);
+
+        Assert.Equal("Space", configuration.HotkeyFor(HotkeyAction.PlayPause)?.DisplayText);
+        Assert.Null(configuration.HotkeyFor(HotkeyAction.PlayMusicTrack(playlistId, trackId)));
+    }
+
+    [Fact]
+    public void RestoreDefaultClearsAnActionThatIsUnassignedByDefault()
+    {
+        var configuration = new HotkeyConfiguration(
+        [
+            new HotkeyBinding(HotkeyAction.StopAll, new Hotkey(0, "A", HotkeyModifier.None))
+        ]);
+
+        configuration.RestoreDefault(HotkeyAction.StopAll);
+
+        Assert.Null(configuration.HotkeyFor(HotkeyAction.StopAll));
     }
 
     [Fact]

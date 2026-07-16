@@ -53,7 +53,7 @@ public static class PlaylistMigration
 
         foreach (var track in tracks)
         {
-            var normalizedPath = track.Path.Trim();
+            var normalizedPath = NormalizePathKey(track.Path);
             if (string.IsNullOrWhiteSpace(normalizedPath))
             {
                 continue;
@@ -66,5 +66,24 @@ public static class PlaylistMigration
         }
 
         return result;
+    }
+
+    private static string NormalizePathKey(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "";
+        }
+
+        var trimmed = path.Trim();
+        try
+        {
+            trimmed = Path.GetFullPath(trimmed);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or PathTooLongException or UnauthorizedAccessException)
+        {
+        }
+
+        return trimmed.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
     }
 }

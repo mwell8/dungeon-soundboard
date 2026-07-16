@@ -5,19 +5,25 @@ namespace DungeonSoundboard.App.Services;
 
 public static class HotkeyMapper
 {
+    private const ushort FunctionKeyBaseCode = 240;
+
     public static Hotkey? FromKeyEvent(KeyEventArgs e)
     {
-        var keyCode = KeyCodeFor(e.Key);
+        return FromKey(e.Key, e.KeyModifiers);
+    }
+
+    public static Hotkey? FromKey(Key key, KeyModifiers modifiers)
+    {
+        var keyCode = KeyCodeFor(key);
         if (keyCode is null)
         {
             return null;
         }
 
-        var modifiers = e.KeyModifiers;
         return Hotkey.Normalized(
             keyCode.Value,
-            CharactersFor(e.Key),
-            CharactersFor(e.Key),
+            CharactersFor(key),
+            CharactersFor(key),
             modifiers.HasFlag(KeyModifiers.Shift),
             modifiers.HasFlag(KeyModifiers.Control),
             modifiers.HasFlag(KeyModifiers.Alt),
@@ -40,6 +46,11 @@ public static class HotkeyMapper
         if (keyValue >= (int)Key.NumPad0 && keyValue <= (int)Key.NumPad9)
         {
             return (ushort)(220 + keyValue - (int)Key.NumPad0);
+        }
+
+        if (keyValue >= (int)Key.F1 && keyValue <= (int)Key.F12)
+        {
+            return (ushort)(FunctionKeyBaseCode + keyValue - (int)Key.F1);
         }
 
         return key switch
@@ -76,6 +87,11 @@ public static class HotkeyMapper
         if (keyValue >= (int)Key.NumPad0 && keyValue <= (int)Key.NumPad9)
         {
             return (keyValue - (int)Key.NumPad0).ToString();
+        }
+
+        if (keyValue >= (int)Key.F1 && keyValue <= (int)Key.F12)
+        {
+            return $"F{keyValue - (int)Key.F1 + 1}";
         }
 
         return key switch

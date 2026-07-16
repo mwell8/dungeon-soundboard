@@ -2,6 +2,23 @@ using DungeonSoundboard.Core.Models;
 
 namespace DungeonSoundboard.App.Services;
 
+public enum AudioPlaybackFailureKind
+{
+    UnsupportedCodec,
+    OutputDevice
+}
+
+public sealed class AudioPlaybackException : Exception
+{
+    public AudioPlaybackException(AudioPlaybackFailureKind kind, string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+        Kind = kind;
+    }
+
+    public AudioPlaybackFailureKind Kind { get; }
+}
+
 public interface IAudioService : IDisposable
 {
     event EventHandler? MusicFinished;
@@ -14,6 +31,7 @@ public interface IAudioService : IDisposable
 
     void PlayMusic(Track track, double volume);
     void PauseMusic();
+    void FadeOutAndPauseMusic(TimeSpan duration, double restoreVolume);
     void ResumeMusic();
     void SeekMusic(TimeSpan position);
     void StopMusic();

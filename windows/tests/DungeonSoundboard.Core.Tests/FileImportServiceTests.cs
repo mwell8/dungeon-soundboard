@@ -48,6 +48,39 @@ public sealed class FileImportServiceTests : IDisposable
         Assert.Equal(1, result.ConflictSummary.DuplicateCount);
     }
 
+    [Fact]
+    public void BuildUniqueTracksIgnoresInvalidExistingTrackPaths()
+    {
+        var rain = Path.Combine(_root, "rain.mp3");
+        File.WriteAllText(rain, "");
+        var existing = new Track("Broken legacy path", "bad\0path.mp3", TrackRole.Music);
+
+        var result = _service.BuildUniqueTracks([rain], TrackRole.Music, [existing], "Music Playlists");
+
+        Assert.Single(result.AddedTracks);
+        Assert.Null(result.ConflictSummary);
+    }
+
+    [Fact]
+    public void BuildUniqueTracksReportsUnsupportedAndSkippedInputCounts()
+    {
+        var rain = Path.Combine(_root, "rain.mp3");
+        var notes = Path.Combine(_root, "notes.txt");
+        var missing = Path.Combine(_root, "missing.wav");
+        File.WriteAllText(rain, "");
+        File.WriteAllText(notes, "");
+        var existing = new Track("Rain", Path.GetFullPath(rain), TrackRole.Music);
+
+        var result = _service.BuildUniqueTracks([rain, notes, missing], TrackRole.Music, [existing], "Music Playlists");
+
+        Assert.Empty(result.AddedTracks);
+        Assert.Equal(1, result.ConflictSummary?.DuplicateCount);
+        Assert.Equal(3, result.ScanSummary.InputPathCount);
+        Assert.Equal(1, result.ScanSummary.SupportedFileCount);
+        Assert.Equal(1, result.ScanSummary.UnsupportedFileCount);
+        Assert.Equal(1, result.ScanSummary.SkippedPathCount);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

@@ -40,7 +40,7 @@ public sealed class ThemeRendererTests
 
         Assert.Equal(ThemePreset.TavernEmber, tavern.Preset);
         Assert.Equal(PanelBlurStrength.Medium, tavern.Chrome.PanelBlurStrength);
-        Assert.Equal(InterfaceDensity.Normal, tavern.Chrome.Density);
+        Assert.Equal(InterfaceDensity.Compact, tavern.Chrome.Density);
     }
 
     [Fact]
@@ -75,6 +75,30 @@ public sealed class ThemeRendererTests
         Assert.True(improved.ContrastRatio(surface) >= 4.5);
     }
 
+    [Theory]
+    [InlineData(0.03)]
+    [InlineData(0.97)]
+    public void ResolveProvidesReadableTextForEverySemanticSurface(double level)
+    {
+        var theme = ThemeRenderer.DefaultTheme;
+        theme.Preset = null;
+        theme.Palette.SurfacePrimary = new ThemeColor(level, level, level);
+        theme.Palette.SurfaceSecondary = new ThemeColor(level, level, level);
+        theme.Palette.Card = new ThemeColor(level, level, level);
+        theme.Palette.CardCurrent = new ThemeColor(level, level, level);
+        theme.Palette.Accent = new ThemeColor(level, level, level);
+        theme.Palette.TextPrimary = new ThemeColor(level, level, level);
+        theme.Palette.TextSecondary = new ThemeColor(level, level, level);
+
+        var resolved = ThemeRenderer.Resolve(theme);
+
+        AssertReadable(resolved.TextPrimary, resolved.TextSecondary, resolved.Panel);
+        AssertReadable(resolved.PanelAltTextPrimary, resolved.PanelAltTextSecondary, resolved.PanelAlt);
+        AssertReadable(resolved.CardTextPrimary, resolved.CardTextSecondary, resolved.Card);
+        AssertReadable(resolved.CardCurrentTextPrimary, resolved.CardCurrentTextSecondary, resolved.CardCurrent);
+        AssertReadable(resolved.AccentTextPrimary, resolved.AccentTextSecondary, resolved.Accent);
+    }
+
     [Fact]
     public void BackgroundConfigSurvivesCoding()
     {
@@ -93,5 +117,11 @@ public sealed class ThemeRendererTests
         var decoded = JsonSerializer.Deserialize<BackgroundConfig>(data, JsonDefaults.Options);
 
         Assert.Equal(config, decoded);
+    }
+
+    private static void AssertReadable(ThemeColor primary, ThemeColor secondary, ThemeColor surface)
+    {
+        Assert.True(primary.ContrastRatio(surface) >= 4.5);
+        Assert.True(secondary.ContrastRatio(surface) >= 3.2);
     }
 }

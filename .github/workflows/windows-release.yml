@@ -1,0 +1,81 @@
+name: Windows Release On Platform Tag
+
+on:
+  push:
+    tags:
+      - "windows-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release-artifact:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore Windows solution
+        run: dotnet restore .\DungeonSoundboard.Windows.sln
+
+      - name: Build Windows solution
+        run: dotnet build .\DungeonSoundboard.Windows.sln -c Release --no-restore -warnaserror
+
+      - name: Run Windows unit tests
+        run: dotnet test .\DungeonSoundboard.Windows.sln -c Release --no-build
+
+      - name: Restore Windows publish runtime
+        run: dotnet restore .\src\DungeonSoundboard.App\DungeonSoundboard.App.csproj -r win-x64
+
+      - name: Publish Windows release zip
+        id: package
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^windows-v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Invalid Windows release tag: $env:GITHUB_REF_NAME"
+          }
+
+          .\scripts\publish-windows.ps1 `
+            -Configuration Release `
+            -Runtime win-x64 `
+            -Version $version `
+            -SkipRestore `
+            -SkipTests
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Upload Windows workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dungeon-Soundboard-${{ steps.package.outputs.version }}-Windows
+          path: windows/publish/Dungeon-Soundboard-${{ steps.package.outputs.version }}-Windows-win-x64.zip
+          if-no-files-found: error
+
+  github-release:
+    runs-on: ubuntu-latest
+    needs:
+      - windows-release-artifact
+
+    steps:
+      - name: Download Windows release artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Dungeon-Soundboard-*-Windows
+          path: ReleaseAssets
+          merge-multiple: true
+
+      - name: Attach Windows zip to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: ReleaseAssets/*.zip

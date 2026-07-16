@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.Fonts.Inter;
 
 namespace DungeonSoundboard.App;
 
@@ -15,7 +14,6 @@ internal static class Program
     {
         return AppBuilder.Configure<App>()
             .UsePlatformDetect()
-            .WithInterFont()
             .LogToTrace();
     }
 }

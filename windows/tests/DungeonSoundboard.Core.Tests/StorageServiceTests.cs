@@ -29,6 +29,7 @@ public sealed class StorageServiceTests : IDisposable
                 EffectsVolume = 0.6,
                 RepeatMode = RepeatMode.All,
                 ShuffleEnabled = true,
+                Language = AppLanguage.Russian,
                 SelectedMusicPlaylistId = music.Id,
                 SelectedEffectPlaylistId = sfx.Id,
                 DuckingAmount = 0.45
@@ -44,6 +45,7 @@ public sealed class StorageServiceTests : IDisposable
         Assert.Equal("Combat SFX", loaded.EffectPlaylists[0].Name);
         Assert.Equal(RepeatMode.All, loaded.Preferences.RepeatMode);
         Assert.True(loaded.Preferences.ShuffleEnabled);
+        Assert.Equal(AppLanguage.Russian, loaded.Preferences.Language);
         Assert.Equal(ThemePreset.MoonlitCrypt, loaded.Theme.Preset);
     }
 
@@ -53,11 +55,18 @@ public sealed class StorageServiceTests : IDisposable
         Directory.CreateDirectory(_root);
         File.WriteAllText(Path.Combine(_root, "playlists.json"), "{ broken");
 
-        var state = new JsonFileStorageService(_root).Load();
+        var storage = new JsonFileStorageService(_root);
+        var state = storage.Load();
+        var expectedDefaults = new AppState();
+        expectedDefaults.EnsureDefaults();
 
         Assert.Single(state.MusicPlaylists);
         Assert.Single(state.EffectPlaylists);
-        Assert.Equal("Main Playlist", state.MusicPlaylists[0].Name);
+        Assert.Equal(expectedDefaults.MusicPlaylists[0].Name, state.MusicPlaylists[0].Name);
+        Assert.Single(storage.RecoveryWarnings);
+        var recoveryFile = Assert.Single(Directory.GetFiles(Path.Combine(_root, "Recovery"), "playlists.json.*.corrupt"));
+        Assert.Equal("{ broken", File.ReadAllText(recoveryFile));
+        Assert.False(File.Exists(Path.Combine(_root, "playlists.json")));
     }
 
     [Fact]

@@ -13,6 +13,14 @@ public sealed record ResolvedTheme(
     ThemeColor Divider,
     ThemeColor TextPrimary,
     ThemeColor TextSecondary,
+    ThemeColor PanelAltTextPrimary,
+    ThemeColor PanelAltTextSecondary,
+    ThemeColor CardTextPrimary,
+    ThemeColor CardTextSecondary,
+    ThemeColor CardCurrentTextPrimary,
+    ThemeColor CardCurrentTextSecondary,
+    ThemeColor AccentTextPrimary,
+    ThemeColor AccentTextSecondary,
     ThemeColor Danger,
     double PanelOpacity,
     double CornerRadius,
@@ -35,19 +43,19 @@ public static class ThemeRenderer
                 Preset = preset,
                 Palette = new ThemePalette
                 {
-                    BackgroundTop = new ThemeColor(0.16, 0.09, 0.07),
-                    BackgroundBottom = new ThemeColor(0.27, 0.14, 0.10),
-                    SurfacePrimary = new ThemeColor(0.24, 0.14, 0.11),
-                    SurfaceSecondary = new ThemeColor(0.30, 0.17, 0.13),
-                    Card = new ThemeColor(0.36, 0.20, 0.15),
-                    CardCurrent = new ThemeColor(0.45, 0.25, 0.16),
-                    Accent = new ThemeColor(0.92, 0.58, 0.23),
-                    Danger = new ThemeColor(0.76, 0.28, 0.24),
-                    TextPrimary = new ThemeColor(0.97, 0.91, 0.84),
-                    TextSecondary = new ThemeColor(0.84, 0.73, 0.64)
+                    BackgroundTop = new ThemeColor(0.09, 0.07, 0.06),
+                    BackgroundBottom = new ThemeColor(0.09, 0.07, 0.06),
+                    SurfacePrimary = new ThemeColor(0.13, 0.10, 0.09),
+                    SurfaceSecondary = new ThemeColor(0.16, 0.13, 0.11),
+                    Card = new ThemeColor(0.20, 0.15, 0.13),
+                    CardCurrent = new ThemeColor(0.36, 0.32, 0.29),
+                    Accent = new ThemeColor(0.85, 0.64, 0.25),
+                    Danger = new ThemeColor(0.56, 0.21, 0.19),
+                    TextPrimary = new ThemeColor(0.94, 0.91, 0.86),
+                    TextSecondary = new ThemeColor(0.66, 0.60, 0.54)
                 },
-                Background = new BackgroundConfig { Opacity = 0.75, DimOverlay = 0.28 },
-                Chrome = new UIChromeConfig { AccentIntensity = 0.72, PanelOpacity = 0.84, CornerRadius = 18 }
+                Background = new BackgroundConfig { Opacity = 0.72, DimOverlay = 0.30 },
+                Chrome = new UIChromeConfig { AccentIntensity = 0.48, PanelOpacity = 0.92, CornerRadius = 10, Density = InterfaceDensity.Compact }
             },
             ThemePreset.MoonlitCrypt => new AppTheme
             {
@@ -93,7 +101,23 @@ public static class ThemeRenderer
 
     public static AppTheme Sanitize(AppTheme theme)
     {
-        var sanitized = theme.Clone();
+        var sanitized = theme.Preset is { } preset
+            ? ThemeFor(preset)
+            : theme.Clone();
+        if (theme.Preset is not null)
+        {
+            sanitized.Background = new BackgroundConfig
+            {
+                Mode = theme.Background.Mode,
+                ImageBookmarkData = theme.Background.ImageBookmarkData?.ToArray(),
+                ImageOriginalPath = theme.Background.ImageOriginalPath,
+                LayoutMode = theme.Background.LayoutMode,
+                Opacity = theme.Background.Opacity,
+                DimOverlay = theme.Background.DimOverlay,
+                BlurRadius = theme.Background.BlurRadius
+            };
+        }
+
         sanitized.Background.Opacity = Clamp(theme.Background.Opacity, 0, 1, 0.72);
         sanitized.Background.DimOverlay = Clamp(theme.Background.DimOverlay, 0.15, 0.65, 0.30);
         sanitized.Background.BlurRadius = Clamp(theme.Background.BlurRadius, 0, 24, 0);
@@ -115,7 +139,18 @@ public static class ThemeRenderer
             sanitized.Palette.Card.Blended(sanitized.Palette.Accent, 0.10 + 0.22 * accentMix),
             sanitized.Palette.SurfacePrimary,
             1.18);
+        var resolvedCurrentCard = currentCard.Blended(sanitized.Palette.CardCurrent, 0.45);
         var divider = sanitized.Palette.TextSecondary.WithAlpha(0.24 + 0.20 * accentMix);
+        var panelTextPrimary = MakeReadable(sanitized.Palette.TextPrimary, sanitized.Palette.SurfacePrimary, 4.5);
+        var panelTextSecondary = MakeReadable(sanitized.Palette.TextSecondary, sanitized.Palette.SurfacePrimary, 3.2);
+        var panelAltTextPrimary = MakeReadable(sanitized.Palette.TextPrimary, sanitized.Palette.SurfaceSecondary, 4.5);
+        var panelAltTextSecondary = MakeReadable(sanitized.Palette.TextSecondary, sanitized.Palette.SurfaceSecondary, 3.2);
+        var cardTextPrimary = MakeReadable(sanitized.Palette.TextPrimary, sanitized.Palette.Card, 4.5);
+        var cardTextSecondary = MakeReadable(sanitized.Palette.TextSecondary, sanitized.Palette.Card, 3.2);
+        var currentCardTextPrimary = MakeReadable(sanitized.Palette.TextPrimary, resolvedCurrentCard, 4.5);
+        var currentCardTextSecondary = MakeReadable(sanitized.Palette.TextSecondary, resolvedCurrentCard, 3.2);
+        var accentTextPrimary = MakeReadable(sanitized.Palette.TextPrimary, sanitized.Palette.Accent, 4.5);
+        var accentTextSecondary = MakeReadable(sanitized.Palette.TextSecondary, sanitized.Palette.Accent, 3.2);
 
         return new ResolvedTheme(
             sanitized.Preset,
@@ -124,12 +159,20 @@ public static class ThemeRenderer
             sanitized.Palette.SurfacePrimary,
             sanitized.Palette.SurfaceSecondary,
             sanitized.Palette.Card,
-            currentCard.Blended(sanitized.Palette.CardCurrent, 0.45),
+            resolvedCurrentCard,
             sanitized.Palette.Accent,
             accentSoft,
             divider,
-            sanitized.Palette.TextPrimary,
-            sanitized.Palette.TextSecondary,
+            panelTextPrimary,
+            panelTextSecondary,
+            panelAltTextPrimary,
+            panelAltTextSecondary,
+            cardTextPrimary,
+            cardTextSecondary,
+            currentCardTextPrimary,
+            currentCardTextSecondary,
+            accentTextPrimary,
+            accentTextSecondary,
             sanitized.Palette.Danger,
             sanitized.Chrome.PanelOpacity,
             sanitized.Chrome.CornerRadius,

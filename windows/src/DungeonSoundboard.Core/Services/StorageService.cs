@@ -16,6 +16,7 @@ public interface IStorageService
 public sealed class JsonFileStorageService : IStorageService
 {
     private const string AppFolderName = "DungeonSoundboard";
+    private readonly List<string> _recoveryWarnings = [];
 
     public JsonFileStorageService(string? dataDirectory = null)
     {
@@ -26,6 +27,8 @@ public sealed class JsonFileStorageService : IStorageService
 
     public string DataDirectory { get; }
 
+    public IReadOnlyList<string> RecoveryWarnings => _recoveryWarnings;
+
     public string PlaylistsPath => Path.Combine(DataDirectory, "playlists.json");
     public string PreferencesPath => Path.Combine(DataDirectory, "preferences.json");
     public string HotkeysPath => Path.Combine(DataDirectory, "hotkeys.json");
@@ -33,6 +36,7 @@ public sealed class JsonFileStorageService : IStorageService
 
     public AppState Load()
     {
+        _recoveryWarnings.Clear();
         Directory.CreateDirectory(DataDirectory);
 
         var state = new AppState();
@@ -80,7 +84,7 @@ public sealed class JsonFileStorageService : IStorageService
             });
     }
 
-    private static T ReadOrDefault<T>(string path, T fallback)
+    private T ReadOrDefault<T>(string path, T fallback)
     {
         if (!File.Exists(path))
         {
@@ -92,16 +96,9 @@ public sealed class JsonFileStorageService : IStorageService
             var json = File.ReadAllText(path);
             return JsonSerializer.Deserialize<T>(json, JsonDefaults.Options) ?? fallback;
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
-            return fallback;
-        }
-        catch (IOException)
-        {
-            return fallback;
-        }
-        catch (UnauthorizedAccessException)
-        {
+            RecoverUnreadableFile(path, ex);
             return fallback;
         }
     }
@@ -110,14 +107,48 @@ public sealed class JsonFileStorageService : IStorageService
     {
         var tempPath = $"{path}.tmp";
         var json = JsonSerializer.Serialize(value, JsonDefaults.Options);
-        File.WriteAllText(tempPath, json);
-        if (File.Exists(path))
+        if (File.Exists(path) && string.Equals(File.ReadAllText(path), json, StringComparison.Ordinal))
         {
-            File.Replace(tempPath, path, null);
+            return;
         }
-        else
+
+        try
         {
-            File.Move(tempPath, path);
+            File.WriteAllText(tempPath, json);
+            if (File.Exists(path))
+            {
+                File.Replace(tempPath, path, null);
+            }
+            else
+            {
+                File.Move(tempPath, path);
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+    }
+
+    private void RecoverUnreadableFile(string path, Exception exception)
+    {
+        try
+        {
+            var recoveryDirectory = Path.Combine(DataDirectory, "Recovery");
+            Directory.CreateDirectory(recoveryDirectory);
+            var fileName = Path.GetFileName(path);
+            var recoveryPath = Path.Combine(
+                recoveryDirectory,
+                $"{fileName}.{DateTime.UtcNow:yyyyMMdd-HHmmssfff}.corrupt");
+            File.Move(path, recoveryPath);
+            _recoveryWarnings.Add($"{fileName} -> {recoveryPath}: {exception.Message}");
+        }
+        catch (Exception recoveryException) when (recoveryException is IOException or UnauthorizedAccessException)
+        {
+            _recoveryWarnings.Add($"{Path.GetFileName(path)}: {exception.Message}; recovery failed: {recoveryException.Message}");
         }
     }
 }

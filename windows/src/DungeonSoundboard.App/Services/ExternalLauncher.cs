@@ -7,6 +7,8 @@ public interface IExternalLauncher
     void OpenFolder(string path);
 
     void RevealFile(string path);
+
+    void OpenUrl(string url);
 }
 
 public sealed class WindowsExternalLauncher : IExternalLauncher
@@ -26,6 +28,15 @@ public sealed class WindowsExternalLauncher : IExternalLauncher
         {
             FileName = "explorer.exe",
             Arguments = $"/select,\"{Path.GetFullPath(path)}\"",
+            UseShellExecute = true
+        });
+    }
+
+    public void OpenUrl(string url)
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = url,
             UseShellExecute = true
         });
     }
